@@ -1,6 +1,7 @@
 'use client'
 
-import { useCollectionStore } from '@/store/collection.store'
+import { useState } from 'react'
+import { useCollectionStore, type CollectionItem } from '@/store/collection.store'
 import { useRequestStore } from '@/store/request.store'
 import {
   ChevronRight,
@@ -9,8 +10,10 @@ import {
   FolderPlus,
   FilePlus,
   Trash2,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
+import CollectionVarsEditor from '../environment/CollectionVarsEditor'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-500',
@@ -39,6 +42,7 @@ export default function CollectionTree() {
     deleteRequest,
   } = useCollectionStore()
   const openTab = useRequestStore(s => s.openTab)
+  const [editingVars, setEditingVars] = useState<CollectionItem | null>(null)
 
   async function handleExpandCollection(colId: string) {
     toggleExpanded(colId)
@@ -100,6 +104,7 @@ export default function CollectionTree() {
   }
 
   return (
+    <>
     <div className="flex flex-col gap-0.5">
       {collections.map(col => {
         const isOpen = !!expanded[col.id]
@@ -123,6 +128,9 @@ export default function CollectionTree() {
                 <span className="truncate text-th-fg">{col.name}</span>
               </button>
               <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                <ActionBtn title="Collection variables" onClick={() => setEditingVars(col)}>
+                  <SlidersHorizontal size={12} />
+                </ActionBtn>
                 <ActionBtn title="Add folder" onClick={() => handleAddFolder(col.id)}>
                   <FolderPlus size={12} />
                 </ActionBtn>
@@ -175,6 +183,14 @@ export default function CollectionTree() {
         )
       })}
     </div>
+
+    {editingVars && (
+      <CollectionVarsEditor
+        collection={editingVars}
+        onClose={() => setEditingVars(null)}
+      />
+    )}
+    </>
   )
 }
 

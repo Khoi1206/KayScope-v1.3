@@ -22,7 +22,8 @@
     "history": "Lịch sử",
     "newRequest": "Yêu cầu mới",
     "noEnvironment": "Không có môi trường",
-    "search": "Tìm kiếm"
+    "search": "Tìm kiếm",
+    "globals": "Biến toàn cục"
   },
   "sidebar": {
     "newCollection": "Bộ sưu tập mới",
@@ -115,6 +116,18 @@
     "profile": "Hồ sơ",
     "theme": "Giao diện",
     "language": "Ngôn ngữ"
+  },
+  "globals": {
+    "title": "Biến toàn cục",
+    "description": "Có sẵn trong tất cả các bộ sưu tập trong workspace này",
+    "addVariable": "Thêm biến"
+  },
+  "import": {
+    "curl": "Nhập cURL",
+    "title": "Nhập từ cURL",
+    "curlPlaceholder": "Dán lệnh cURL của bạn vào đây…",
+    "import": "Nhập",
+    "error": "Không thể phân tích lệnh cURL"
   },
   "history": {
     "title": "Lịch sử",

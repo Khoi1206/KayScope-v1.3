@@ -1,38 +1,50 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2 } from 'lucide-react'
+import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, FileInput } from 'lucide-react'
 import { useUiStore, type SidebarSection } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
+import { useWorkspaceStore } from '@/store/workspace.store'
 import CollectionTree from './CollectionTree'
 import HistoryList from './HistoryList'
 import EnvironmentEditor from '../environment/EnvironmentEditor'
+import GlobalVarsEditor from '../variables/GlobalVarsEditor'
+import CurlImportModal from './CurlImportModal'
 import { cn } from '@/components/ui/cn'
 
 export default function Sidebar() {
   const t = useTranslations()
   const { sidebarSection, setSidebarSection } = useUiStore()
+  const { fetchWorkspace } = useWorkspaceStore()
+  const [showCurlImport, setShowCurlImport] = useState(false)
+
+  useEffect(() => {
+    fetchWorkspace()
+  }, [fetchWorkspace])
 
   const navItems: { section: SidebarSection; icon: React.ReactNode; label: string }[] = [
     { section: 'collections', icon: <FolderOpen size={18} />, label: t('nav.collections') },
     { section: 'environments', icon: <Layers size={18} />, label: t('nav.environments') },
+    { section: 'globals', icon: <Globe size={18} />, label: t('nav.globals') },
     { section: 'history', icon: <History size={18} />, label: t('nav.history') },
   ]
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-th-border bg-th-surface">
       {/* Section tabs */}
-      <div className="flex border-b border-th-border">
+      <div className="flex gap-1 border-b border-th-border px-2 pt-2">
         {navItems.map(({ section, icon, label }) => (
           <button
             key={section}
             onClick={() => setSidebarSection(section)}
             title={label}
             className={cn(
-              'flex flex-1 items-center justify-center py-3 text-th-fg-muted transition-colors hover:text-th-fg',
-              sidebarSection === section && 'border-b-2 border-th-accent text-th-fg'
+              'flex flex-1 items-center justify-center rounded-t-md py-2.5 text-th-fg-muted transition-colors hover:text-th-fg',
+              sidebarSection === section
+                ? 'bg-th-bg text-th-fg shadow-sm'
+                : 'hover:bg-th-surface-hover'
             )}
           >
             {icon}
@@ -42,15 +54,20 @@ export default function Sidebar() {
 
       {/* Section content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {sidebarSection === 'collections' && <CollectionsSection />}
+        {sidebarSection === 'collections' && (
+          <CollectionsSection onImportCurl={() => setShowCurlImport(true)} />
+        )}
         {sidebarSection === 'environments' && <EnvironmentsSection />}
+        {sidebarSection === 'globals' && <GlobalsSection />}
         {sidebarSection === 'history' && <HistorySection />}
       </div>
+
+      {showCurlImport && <CurlImportModal onClose={() => setShowCurlImport(false)} />}
     </aside>
   )
 }
 
-function CollectionsSection() {
+function CollectionsSection({ onImportCurl }: { onImportCurl: () => void }) {
   const t = useTranslations()
   const { createCollection } = useCollectionStore()
 
@@ -63,17 +80,26 @@ function CollectionsSection() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-th-fg-muted">
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.collections')}
         </span>
-        <button
-          onClick={handleCreate}
-          title={t('common.new')}
-          className="rounded p-1 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
-        >
-          <Plus size={14} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={onImportCurl}
+            title={t('import.curl')}
+            className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+          >
+            <FileInput size={13} />
+          </button>
+          <button
+            onClick={handleCreate}
+            title={t('common.new')}
+            className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto px-1 pb-4">
         <CollectionTree />
@@ -87,7 +113,6 @@ function EnvironmentsSection() {
   const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment } =
     useEnvironmentStore()
 
-  // undefined = closed, null = create, EnvironmentItem = edit
   const [editing, setEditing] = useState<EnvironmentItem | null | undefined>(undefined)
 
   async function handleDelete(id: string, name: string) {
@@ -97,40 +122,43 @@ function EnvironmentsSection() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-th-fg-muted">
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.environments')}
         </span>
         <button
           onClick={() => setEditing(null)}
           title={t('common.new')}
-          className="rounded p-1 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
+          className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
         >
-          <Plus size={14} />
+          <Plus size={13} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-1">
         {environments.length === 0 && (
-          <p className="px-2 py-3 text-xs text-th-fg-subtle">
+          <p className="px-3 py-4 text-xs text-th-fg-subtle">
             No environments yet. Create one to get started.
           </p>
         )}
         {environments.map(env => (
           <div
             key={env.id}
-            className="group flex w-full items-center rounded px-2 py-1.5 hover:bg-th-surface-hover"
+            className={cn(
+              'group flex w-full items-center rounded-md mx-1 px-2 py-2 transition-colors hover:bg-th-surface-hover',
+              activeEnvironmentId === env.id && 'bg-th-surface-hover'
+            )}
           >
             <button
               onClick={() =>
                 setActiveEnvironment(activeEnvironmentId === env.id ? null : env.id)
               }
-              className="flex flex-1 items-center gap-2 overflow-hidden text-left"
+              className="flex flex-1 items-center gap-2.5 overflow-hidden text-left"
             >
               <div
                 className={cn(
-                  'h-2 w-2 shrink-0 rounded-full',
-                  activeEnvironmentId === env.id ? 'bg-th-accent' : 'bg-th-border'
+                  'h-2 w-2 shrink-0 rounded-full transition-colors',
+                  activeEnvironmentId === env.id ? 'bg-th-accent shadow-[0_0_6px] shadow-th-accent/50' : 'bg-th-border'
                 )}
               />
               <span
@@ -148,14 +176,14 @@ function EnvironmentsSection() {
               <button
                 onClick={() => setEditing(env)}
                 title="Edit"
-                className="rounded p-0.5 text-th-fg-muted hover:text-th-fg"
+                className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-th-fg"
               >
                 <Pencil size={12} />
               </button>
               <button
                 onClick={() => handleDelete(env.id, env.name)}
                 title="Delete"
-                className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
+                className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-red-400"
               >
                 <Trash2 size={12} />
               </button>
@@ -171,12 +199,64 @@ function EnvironmentsSection() {
   )
 }
 
+function GlobalsSection() {
+  const t = useTranslations()
+  const { workspace } = useWorkspaceStore()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
+          {t('nav.globals')}
+        </span>
+        <button
+          onClick={() => setOpen(true)}
+          title="Edit global variables"
+          className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+        >
+          <Pencil size={13} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {(workspace?.globalVariables ?? []).length === 0 ? (
+          <p className="py-3 text-xs text-th-fg-subtle">
+            No global variables yet.{' '}
+            <button
+              onClick={() => setOpen(true)}
+              className="text-th-accent hover:underline"
+            >
+              Add one
+            </button>
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1 pt-1">
+            {workspace!.globalVariables
+              .filter(v => v.enabled)
+              .map((v, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-th-surface-hover">
+                  <span className="shrink-0 font-mono text-th-fg">{v.key}</span>
+                  <span className="truncate font-mono text-th-fg-muted">
+                    {v.secret ? '••••••••' : v.value}
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+
+      {open && <GlobalVarsEditor onClose={() => setOpen(false)} />}
+    </div>
+  )
+}
+
 function HistorySection() {
   const t = useTranslations()
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-th-fg-muted">
+      <div className="px-3 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.history')}
         </span>
       </div>

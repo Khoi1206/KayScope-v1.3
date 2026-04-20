@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,106 +108,125 @@ interface RequestStore {
 
 let tabCounter = 0
 
-export const useRequestStore = create<RequestStore>((set, get) => ({
-  tabs: [],
-  snapshots: {},
-  activeTabId: null,
+export const useRequestStore = create<RequestStore>()(
+  persist(
+    (set, get) => ({
+      tabs: [],
+      snapshots: {},
+      activeTabId: null,
 
-  openTab: (meta, snapshot) => {
-    const existing = get().tabs.find(t => t.id === meta.id)
-    if (existing) {
-      set({ activeTabId: meta.id })
-      return
-    }
-    const title = meta.title ?? `Request ${++tabCounter}`
-    const newTab: TabMeta = {
-      id: meta.id,
-      title,
-      requestId: meta.requestId,
-      collectionId: meta.collectionId,
-      isDirty: false,
-    }
-    set(s => ({
-      tabs: [...s.tabs, newTab],
-      snapshots: {
-        ...s.snapshots,
-        [meta.id]: { ...defaultSnapshot(), ...(snapshot ?? {}) },
+      openTab: (meta, snapshot) => {
+        const existing = get().tabs.find(t => t.id === meta.id)
+        if (existing) {
+          set({ activeTabId: meta.id })
+          return
+        }
+        const title = meta.title ?? `Request ${++tabCounter}`
+        const newTab: TabMeta = {
+          id: meta.id,
+          title,
+          requestId: meta.requestId,
+          collectionId: meta.collectionId,
+          isDirty: false,
+        }
+        set(s => ({
+          tabs: [...s.tabs, newTab],
+          snapshots: {
+            ...s.snapshots,
+            [meta.id]: { ...defaultSnapshot(), ...(snapshot ?? {}) },
+          },
+          activeTabId: meta.id,
+        }))
       },
-      activeTabId: meta.id,
-    }))
-  },
 
-  closeTab: (id) => {
-    set(s => {
-      const tabs = s.tabs.filter(t => t.id !== id)
-      const snapshots = { ...s.snapshots }
-      delete snapshots[id]
-      const activeTabId =
-        s.activeTabId === id
-          ? (tabs[tabs.length - 1]?.id ?? null)
-          : s.activeTabId
-      return { tabs, snapshots, activeTabId }
-    })
-  },
+      closeTab: (id) => {
+        set(s => {
+          const tabs = s.tabs.filter(t => t.id !== id)
+          const snapshots = { ...s.snapshots }
+          delete snapshots[id]
+          const activeTabId =
+            s.activeTabId === id
+              ? (tabs[tabs.length - 1]?.id ?? null)
+              : s.activeTabId
+          return { tabs, snapshots, activeTabId }
+        })
+      },
 
-  setActiveTab: (id) => set({ activeTabId: id }),
+      setActiveTab: (id) => set({ activeTabId: id }),
 
-  updateSnapshot: (id, patch) => {
-    const DIRTY_FIELDS = new Set([
-      'method', 'url', 'params', 'headers', 'body', 'auth', 'preRequestScript', 'postRequestScript',
-    ])
-    const triggeredDirty = Object.keys(patch).some(k => DIRTY_FIELDS.has(k))
-    set(s => {
-      const tab = s.tabs.find(t => t.id === id)
-      const shouldMarkDirty = triggeredDirty && !!tab?.requestId && !tab.isDirty
-      return {
-        snapshots: {
-          ...s.snapshots,
-          [id]: { ...(s.snapshots[id] ?? defaultSnapshot()), ...patch },
-        },
-        tabs: shouldMarkDirty
-          ? s.tabs.map(t => t.id === id ? { ...t, isDirty: true } : t)
-          : s.tabs,
-      }
-    })
-  },
+      updateSnapshot: (id, patch) => {
+        const DIRTY_FIELDS = new Set([
+          'method', 'url', 'params', 'headers', 'body', 'auth', 'preRequestScript', 'postRequestScript',
+        ])
+        const triggeredDirty = Object.keys(patch).some(k => DIRTY_FIELDS.has(k))
+        set(s => {
+          const tab = s.tabs.find(t => t.id === id)
+          const shouldMarkDirty = triggeredDirty && !!tab?.requestId && !tab.isDirty
+          return {
+            snapshots: {
+              ...s.snapshots,
+              [id]: { ...(s.snapshots[id] ?? defaultSnapshot()), ...patch },
+            },
+            tabs: shouldMarkDirty
+              ? s.tabs.map(t => t.id === id ? { ...t, isDirty: true } : t)
+              : s.tabs,
+          }
+        })
+      },
 
-  markDirty: (id) => {
-    set(s => ({
-      tabs: s.tabs.map(t => t.id === id ? { ...t, isDirty: true } : t),
-    }))
-  },
+      markDirty: (id) => {
+        set(s => ({
+          tabs: s.tabs.map(t => t.id === id ? { ...t, isDirty: true } : t),
+        }))
+      },
 
-  markClean: (id) => {
-    set(s => ({
-      tabs: s.tabs.map(t => t.id === id ? { ...t, isDirty: false } : t),
-    }))
-  },
+      markClean: (id) => {
+        set(s => ({
+          tabs: s.tabs.map(t => t.id === id ? { ...t, isDirty: false } : t),
+        }))
+      },
 
-  saveRequest: async (tabId) => {
-    const tab = get().tabs.find(t => t.id === tabId)
-    const snap = get().snapshots[tabId]
-    if (!tab?.requestId || !snap) throw new Error('No saved request to update')
-    const res = await fetch(`/api/requests/${tab.requestId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method: snap.method,
-        url: snap.url,
-        params: snap.params,
-        headers: snap.headers,
-        body: snap.body,
-        auth: snap.auth,
-        preRequestScript: snap.preRequestScript,
-        postRequestScript: snap.postRequestScript,
+      saveRequest: async (tabId) => {
+        const tab = get().tabs.find(t => t.id === tabId)
+        const snap = get().snapshots[tabId]
+        if (!tab?.requestId || !snap) throw new Error('No saved request to update')
+        const res = await fetch(`/api/requests/${tab.requestId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            method: snap.method,
+            url: snap.url,
+            params: snap.params,
+            headers: snap.headers,
+            body: snap.body,
+            auth: snap.auth,
+            preRequestScript: snap.preRequestScript,
+            postRequestScript: snap.postRequestScript,
+          }),
+        })
+        if (!res.ok) throw new Error('Failed to save request')
+        get().markClean(tabId)
+      },
+
+      activeSnapshot: () => {
+        const id = get().activeTabId
+        return id ? (get().snapshots[id] ?? null) : null
+      },
+    }),
+    {
+      name: 'kayscope-tabs',
+      storage: createJSONStorage(() => localStorage),
+      // Don't persist transient UI state (response, sending)
+      partialize: (state) => ({
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+        snapshots: Object.fromEntries(
+          Object.entries(state.snapshots).map(([id, snap]) => [
+            id,
+            { ...snap, response: null, sending: false },
+          ])
+        ),
       }),
-    })
-    if (!res.ok) throw new Error('Failed to save request')
-    get().markClean(tabId)
-  },
-
-  activeSnapshot: () => {
-    const id = get().activeTabId
-    return id ? (get().snapshots[id] ?? null) : null
-  },
-}))
+    }
+  )
+)

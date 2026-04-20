@@ -13,8 +13,8 @@ export default function HeadersViewer({ headers }: Props) {
     <table className="w-full text-xs">
       <tbody>
         {entries.map(([key, value]) => (
-          <tr key={key} className="border-b border-th-border">
-            <td className="px-4 py-1.5 font-mono font-medium text-th-fg">{key}</td>
+          <tr key={key} className="border-b border-th-border hover:bg-th-surface">
+            <td className="w-48 px-4 py-1.5 font-mono font-semibold text-th-accent">{key}</td>
             <td className="px-4 py-1.5 font-mono text-th-fg-muted break-all">{value}</td>
           </tr>
         ))}

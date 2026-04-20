@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
-import { getMessages } from 'next-intl/server'
+import { getMessages, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import { ThemeProvider } from 'next-themes'
 import { routing } from '@/i18n/routing'
@@ -23,13 +23,16 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
     notFound()
   }
 
+  // Tell next-intl the active locale for this request (required when not using next-intl middleware)
+  setRequestLocale(locale)
+
   const messages = await getMessages()
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <NextIntlClientProvider messages={messages}>
+          <NextIntlClientProvider locale={locale} messages={messages}>
             {children}
           </NextIntlClientProvider>
         </ThemeProvider>

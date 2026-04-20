@@ -22,7 +22,8 @@
     "history": "History",
     "newRequest": "New Request",
     "noEnvironment": "No Environment",
-    "search": "Search"
+    "search": "Search",
+    "globals": "Globals"
   },
   "sidebar": {
     "newCollection": "New Collection",
@@ -115,6 +116,18 @@
     "profile": "Profile",
     "theme": "Theme",
     "language": "Language"
+  },
+  "globals": {
+    "title": "Global Variables",
+    "description": "Available across all collections in this workspace",
+    "addVariable": "Add variable"
+  },
+  "import": {
+    "curl": "Import cURL",
+    "title": "Import from cURL",
+    "curlPlaceholder": "Paste your cURL command here…",
+    "import": "Import",
+    "error": "Failed to parse cURL command"
   },
   "history": {
     "title": "History",

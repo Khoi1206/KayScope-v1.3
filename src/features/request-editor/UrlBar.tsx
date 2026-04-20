@@ -4,11 +4,11 @@ import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Send, Save } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
+import VarHighlight from '@/components/VarHighlight'
 import { interpolateWithStatus } from '@/core/interpolation/engine'
 import { emptyScopes, mergeScopes } from '@/core/interpolation/scope'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
-const VAR_RE = /\{\{(\$?[a-zA-Z_][a-zA-Z0-9_.\-]*)\}\}/g
 
 interface Props {
   method: string
@@ -53,25 +53,8 @@ export default function UrlBar({
     try { new URL(resolvedUrl) } catch { sendDisabled = true }
   }
 
-  // Build resolved map for all vars in the URL
-  const resolvedMap: Record<string, string | undefined> = {}
-  for (const m of [...url.matchAll(new RegExp(VAR_RE.source, 'g'))]) {
-    const name = m[1]!
-    resolvedMap[name] = localScope[name] ?? environmentVariables[name]
-  }
-
-  // Overlay segments
-  const segments: Array<{ type: 'text' | 'var'; content: string; name?: string }> = []
-  {
-    let last = 0
-    for (const m of [...url.matchAll(new RegExp(VAR_RE.source, 'g'))]) {
-      if (m.index! > last) segments.push({ type: 'text', content: url.slice(last, m.index) })
-      segments.push({ type: 'var', content: m[0], name: m[1] })
-      last = m.index! + m[0].length
-    }
-    if (last < url.length) segments.push({ type: 'text', content: url.slice(last) })
-  }
-  const showOverlay = segments.some(s => s.type === 'var')
+  const allVars: Record<string, string> = { ...environmentVariables, ...localScope }
+  const showOverlay = /\{\{(\$?[a-zA-Z_][a-zA-Z0-9_.\-]*)\}\}/g.test(url)
 
   function openHover(name: string, rect: DOMRect) {
     clearTimeout(closeTimer.current)
@@ -91,7 +74,7 @@ export default function UrlBar({
         <select
           value={method}
           onChange={e => onMethodChange(e.target.value)}
-          className="rounded border border-th-border bg-th-input px-2 py-1.5 text-xs font-semibold text-th-fg focus:outline-none focus:ring-1 focus:ring-th-accent"
+          className="rounded-md border border-th-border bg-th-input px-2 py-1.5 text-xs font-bold text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
         >
           {HTTP_METHODS.map(m => (
             <option key={m} value={m}>{m}</option>
@@ -108,10 +91,10 @@ export default function UrlBar({
             onScroll={e => setScrollLeft((e.target as HTMLInputElement).scrollLeft)}
             placeholder="https://api.example.com/{{endpoint}}"
             className={cn(
-              'w-full rounded border bg-th-input px-3 py-1.5 font-mono text-sm placeholder:text-th-fg-subtle focus:outline-none focus:ring-1',
+              'w-full rounded-md border bg-th-input px-3 py-1.5 font-mono text-sm placeholder:text-th-fg-subtle focus:outline-none focus:ring-1',
               hasUnresolved
-                ? 'border-yellow-500/50 focus:ring-yellow-500/50'
-                : 'border-th-border focus:ring-th-accent'
+                ? 'border-yellow-500/40 focus:ring-yellow-500/40'
+                : 'border-th-border focus:border-th-accent focus:ring-th-accent/50'
             )}
             style={showOverlay ? { color: 'transparent', caretColor: '#94a3b8' } : undefined}
           />
@@ -119,38 +102,27 @@ export default function UrlBar({
           {/* Colored overlay */}
           {showOverlay && (
             <div
-              className="pointer-events-none absolute inset-0 overflow-hidden rounded px-3 py-1.5"
+              className="pointer-events-none absolute inset-0 overflow-hidden rounded-md px-3 py-1.5"
               aria-hidden
             >
               <div
                 className="flex h-full items-center whitespace-pre font-mono text-sm"
                 style={{ transform: `translateX(${-scrollLeft}px)` }}
               >
-                {segments.map((seg, i) =>
-                  seg.type === 'text' ? (
-                    <span key={i} className="text-th-fg">{seg.content}</span>
-                  ) : (
-                    <span
-                      key={i}
-                      className={cn(
-                        'cursor-pointer underline decoration-dotted underline-offset-2',
-                        resolvedMap[seg.name!] !== undefined ? 'text-th-accent' : 'text-yellow-400'
-                      )}
-                      style={{ pointerEvents: 'auto' }}
-                      onMouseEnter={e => openHover(seg.name!, (e.currentTarget as HTMLElement).getBoundingClientRect())}
-                      onMouseLeave={scheduleClose}
-                    >
-                      {seg.content}
-                    </span>
-                  )
-                )}
+                <VarHighlight
+                  text={url}
+                  allVars={allVars}
+                  className="text-th-fg"
+                  onVarHover={openHover}
+                  onVarLeave={scheduleClose}
+                />
               </div>
             </div>
           )}
 
           {/* Unresolved warning icon */}
           {hasUnresolved && !showOverlay && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-yellow-500" title="Some variables are unresolved">
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-yellow-500" title="Some variables are unresolved">
               ⚠
             </span>
           )}
@@ -162,7 +134,7 @@ export default function UrlBar({
             onClick={onSave}
             disabled={!isDirty || saving}
             title={isDirty ? t('save') : t('saved')}
-            className="flex items-center gap-1.5 rounded border border-th-border px-3 py-1.5 text-xs font-medium text-th-fg-muted hover:border-th-accent hover:text-th-fg disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-md border border-th-border px-3 py-1.5 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={13} />
             {saving ? t('saving') : t('save')}
@@ -174,8 +146,8 @@ export default function UrlBar({
           onClick={onSend}
           disabled={sendDisabled}
           className={cn(
-            'flex items-center gap-2 rounded px-4 py-1.5 text-sm font-medium text-white transition-colors',
-            'bg-th-accent hover:bg-th-accent-hover disabled:cursor-not-allowed disabled:opacity-50'
+            'flex items-center gap-2 rounded-md px-5 py-1.5 text-sm font-semibold text-white transition-opacity',
+            'bg-th-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
           )}
         >
           <Send size={14} />
@@ -187,7 +159,7 @@ export default function UrlBar({
       {hovered && (
         <VarHoverPopover
           name={hovered.name}
-          value={resolvedMap[hovered.name]}
+          value={allVars[hovered.name]}
           anchor={hovered.rect}
           onSet={v => { onSetLocalVar?.(hovered.name, v); setHovered(null) }}
           onMouseEnter={cancelClose}
@@ -216,12 +188,12 @@ function VarHoverPopover({
 
   return (
     <div
-      style={{ position: 'fixed', top: anchor.bottom + 6, left: anchor.left, zIndex: 9999 }}
-      className="w-56 rounded border border-th-border bg-th-bg p-3 shadow-xl"
+      style={{ position: 'fixed', top: anchor.bottom + 8, left: anchor.left, zIndex: 9999 }}
+      className="w-60 rounded-lg border border-th-border bg-th-bg p-3 shadow-2xl"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <p className="mb-1 font-mono text-xs font-semibold">
+      <p className="mb-1.5 font-mono text-xs font-semibold">
         <span className={value !== undefined ? 'text-th-accent' : 'text-yellow-400'}>
           {`{{${name}}}`}
         </span>

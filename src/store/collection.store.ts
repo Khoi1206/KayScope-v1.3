@@ -5,7 +5,7 @@ export interface CollectionItem {
   workspaceId: string
   name: string
   description?: string | null
-  variables: Array<{ key: string; value: string; enabled: boolean; secret: boolean }>
+  variables: Array<{ key: string; value: string; enabled: boolean }>
   sortOrder: number
   createdAt: string
   updatedAt: string

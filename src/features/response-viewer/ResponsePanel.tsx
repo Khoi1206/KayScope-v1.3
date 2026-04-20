@@ -15,12 +15,12 @@ interface Props {
   response: ResponseData
 }
 
-function statusColor(status: number) {
-  if (status === 0) return 'text-th-fg-muted'
-  if (status < 200) return 'text-blue-500'
-  if (status < 300) return 'text-green-500'
-  if (status < 400) return 'text-yellow-500'
-  return 'text-red-500'
+function statusBadgeClass(status: number) {
+  if (status === 0) return 'bg-th-border/30 text-th-fg-muted'
+  if (status < 200) return 'bg-blue-500/15 text-blue-400'
+  if (status < 300) return 'bg-green-500/15 text-green-400'
+  if (status < 400) return 'bg-yellow-500/15 text-yellow-400'
+  return 'bg-red-500/15 text-red-400'
 }
 
 function formatSize(bytes: number) {
@@ -45,39 +45,42 @@ export default function ResponsePanel({ response }: Props) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-th-bg">
       {/* Status bar */}
-      <div className="flex items-center gap-4 border-b border-th-border px-4 py-2 text-xs">
+      <div className="flex items-center gap-3 border-b border-th-border bg-th-surface px-4 py-2 text-xs">
         {response.status > 0 && (
           <>
-            <span className={cn('font-semibold', statusColor(response.status))}>
-              {response.status} {response.statusText}
+            <span className={cn('rounded-md px-2 py-0.5 font-bold tabular-nums', statusBadgeClass(response.status))}>
+              {response.status}
             </span>
-            <span className="text-th-fg-muted">{response.durationMs}ms</span>
-            <span className="text-th-fg-muted">{formatSize(response.size)}</span>
+            <span className="text-th-fg-muted">{response.statusText}</span>
+            <span className="text-th-fg-subtle">·</span>
+            <span className="font-mono text-th-fg-muted">{response.durationMs} <span className="text-th-fg-subtle">ms</span></span>
+            <span className="text-th-fg-subtle">·</span>
+            <span className="font-mono text-th-fg-muted">{formatSize(response.size)}</span>
           </>
         )}
         {response.status === 0 && (
-          <span className="text-th-error">{t('error')}: {response.statusText}</span>
+          <span className="rounded-md bg-red-500/15 px-2 py-0.5 text-red-400">{t('error')}: {response.statusText}</span>
         )}
-
-        {/* Pre/post script errors */}
-        {response.preScriptError && (
-          <span className="text-red-400" title={response.preScriptError}>⚠ Pre-script error</span>
-        )}
-        {response.postScriptError && (
-          <span className="text-yellow-400" title={response.postScriptError}>⚠ Post-script error</span>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {response.preScriptError && (
+            <span className="rounded-md bg-red-500/10 px-2 py-0.5 text-red-400" title={response.preScriptError}>⚠ Pre-script</span>
+          )}
+          {response.postScriptError && (
+            <span className="rounded-md bg-yellow-500/10 px-2 py-0.5 text-yellow-400" title={response.postScriptError}>⚠ Post-script</span>
+          )}
+        </div>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-0 border-b border-th-border bg-th-surface px-4">
+      <div className="flex gap-0 border-b border-th-border bg-th-surface px-3">
         {TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={cn(
-              'px-3 py-2 text-xs',
+              'relative px-3 py-2.5 text-xs font-medium transition-colors',
               tab === key
-                ? 'border-b-2 border-th-accent text-th-fg'
+                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-th-accent'
                 : 'text-th-fg-muted hover:text-th-fg'
             )}
           >
@@ -86,12 +89,16 @@ export default function ResponsePanel({ response }: Props) {
         ))}
         {/* Test results badge */}
         {response.tests && response.tests.length > 0 && (
-          <span className="ml-auto flex items-center gap-1 px-2 text-xs">
-            <span className="text-green-500">{response.tests.filter(t => t.passed).length}✓</span>
+          <div className="ml-auto flex items-center gap-1.5 px-2 text-xs">
+            <span className="rounded-md bg-green-500/15 px-2 py-0.5 font-medium text-green-400">
+              {response.tests.filter(t => t.passed).length} ✓
+            </span>
             {response.tests.some(t => !t.passed) && (
-              <span className="text-red-400">{response.tests.filter(t => !t.passed).length}✗</span>
+              <span className="rounded-md bg-red-500/15 px-2 py-0.5 font-medium text-red-400">
+                {response.tests.filter(t => !t.passed).length} ✗
+              </span>
             )}
-          </span>
+          </div>
         )}
       </div>
 
@@ -103,19 +110,21 @@ export default function ResponsePanel({ response }: Props) {
         {tab === 'timing' && <TimingViewer response={response} />}
       </div>
 
-      {/* Tests + logs (collapsed footer) */}
+      {/* Tests footer */}
       {response.tests && response.tests.length > 0 && (
-        <div className="border-t border-th-border bg-th-surface px-4 py-2">
-          <p className="mb-1 text-xs font-semibold text-th-fg-muted">Tests</p>
-          {response.tests.map((test, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <span className={test.passed ? 'text-green-500' : 'text-red-400'}>
-                {test.passed ? '✓' : '✗'}
-              </span>
-              <span className="text-th-fg">{test.name}</span>
-              {test.error && <span className="text-red-400 truncate">{test.error}</span>}
-            </div>
-          ))}
+        <div className="border-t border-th-border bg-th-surface px-4 py-2.5">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">Tests</p>
+          <div className="flex flex-col gap-1">
+            {response.tests.map((test, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className={cn('shrink-0 font-bold', test.passed ? 'text-green-400' : 'text-red-400')}>
+                  {test.passed ? '✓' : '✗'}
+                </span>
+                <span className="text-th-fg">{test.name}</span>
+                {test.error && <span className="truncate text-red-400 opacity-70">{test.error}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

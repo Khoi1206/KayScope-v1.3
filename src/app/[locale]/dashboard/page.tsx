@@ -6,5 +6,5 @@ export default async function DashboardPage({ params }: { params: { locale: stri
   const session = await requireSession().catch(() => null)
   if (!session) redirect(`/${params.locale}/login`)
 
-  return <WorkspaceShell userId={session.user.id} />
+  return <WorkspaceShell userId={session.user.id} userName={session.user.name} />
 }

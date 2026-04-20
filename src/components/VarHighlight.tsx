@@ -6,11 +6,14 @@ interface Props {
   text: string
   allVars: Record<string, string>
   className?: string
+  /** Called when the user hovers a {{var}} token. Enables pointer events on var spans. */
+  onVarHover?: (name: string, rect: DOMRect) => void
+  onVarLeave?: () => void
 }
 
 const VAR_RE = /(\{\{[^}]+\}\})/g
 
-export default function VarHighlight({ text, allVars, className }: Props) {
+export default function VarHighlight({ text, allVars, className, onVarHover, onVarLeave }: Props) {
   const parts = text.split(VAR_RE)
   return (
     <span className={className}>
@@ -23,10 +26,13 @@ export default function VarHighlight({ text, allVars, className }: Props) {
           <span
             key={i}
             className={cn(
-              'font-mono text-xs',
-              resolved ? 'text-th-accent' : 'text-yellow-400'
+              resolved ? 'text-th-accent' : 'text-yellow-400',
+              onVarHover && 'cursor-pointer underline decoration-dotted underline-offset-2',
             )}
+            style={onVarHover ? { pointerEvents: 'auto' } : undefined}
             title={resolved ? allVars[name] : 'Unresolved variable'}
+            onMouseEnter={onVarHover ? e => onVarHover(name, (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
+            onMouseLeave={onVarLeave}
           >
             {part}
           </span>
