@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Light theme ── */
+:root {
+  --th-bg:            #f3f4f6;
+  --th-nav:           #ffffff;
+  --th-sidebar:       #f0f2f5;
+  --th-tabbar:        #e5e7eb;
+  --th-surface:       #ffffff;
+  --th-surface-hover: #f3f4f6;
+  --th-raised:        #f8fafc;
+  --th-input:         #f9fafb;
+  --th-border:        #d1d5db;
+  --th-border-soft:   #e5e7eb;
+  /* Text */
+  --th-fg:            #111827;
+  --th-fg-muted:      #374151;
+  --th-fg-subtle:     #9ca3af;
+  /* Accent */
+  --th-accent:        #6366f1;
+  --th-accent-hover:  #4f46e5;
+  /* Semantic */
+  --th-error:         #ef4444;
+  --th-warning:       #f59e0b;
+  --th-success:       #22c55e;
+}
+
+/* ── Dark theme ── */
+.dark {
+  --th-bg:            #0f0f0f;
+  --th-nav:           #1c1c1c;
+  --th-sidebar:       #141414;
+  --th-tabbar:        #111111;
+  --th-surface:       #1e1e1e;
+  --th-surface-hover: #2a2a2a;
+  --th-raised:        #252525;
+  --th-input:         #1a1a1a;
+  --th-border:        rgba(55, 65, 81, 0.6);
+  --th-border-soft:   rgba(55, 65, 81, 0.4);
+  /* Text */
+  --th-fg:            #f3f4f6;
+  --th-fg-muted:      #9ca3af;
+  --th-fg-subtle:     #4b5563;
+  /* Accent */
+  --th-accent:        #818cf8;
+  --th-accent-hover:  #6366f1;
+  /* Semantic */
+  --th-error:         #f87171;
+  --th-warning:       #fbbf24;
+  --th-success:       #4ade80;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--th-bg);
+  color: var(--th-fg);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

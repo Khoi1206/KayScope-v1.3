@@ -1,0 +1,51 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ─── Build output ────────────────────────────────────────────────────────────
+.next/
+out/
+build/
+dist/
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+.env
+*.pem
+
+# ─── Database ────────────────────────────────────────────────────────────────
+drizzle/meta/
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+coverage/
+test-results/
+playwright-report/
+playwright/.auth/
+**/__tests__/
+.vitest/
+*.vitest-cache
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+
+# ─── Deployment ──────────────────────────────────────────────────────────────
+.vercel
+
+# ─── Project-specific ────────────────────────────────────────────────────────
+CLAUDE.md
+.claude/

@@ -1,0 +1,132 @@
+{
+  "auth": {
+    "loginTitle": "Sign in to KayScope",
+    "registerTitle": "Create your account",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "signIn": "Sign In",
+    "signingIn": "Signing in…",
+    "createAccount": "Create Account",
+    "creatingAccount": "Creating account…",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "register": "Register",
+    "invalidCredentials": "Invalid email or password",
+    "registrationFailed": "Registration failed. Please try again.",
+    "emailTaken": "An account with this email already exists"
+  },
+  "nav": {
+    "collections": "Collections",
+    "environments": "Environments",
+    "history": "History",
+    "newRequest": "New Request",
+    "noEnvironment": "No Environment",
+    "search": "Search"
+  },
+  "sidebar": {
+    "newCollection": "New Collection",
+    "collectionNamePlaceholder": "Collection name",
+    "noCollections": "No collections yet",
+    "noHistory": "No history yet",
+    "loadMore": "Load more"
+  },
+  "request": {
+    "openOrCreate": "Open or create a request to get started",
+    "newTab": "New Request",
+    "send": "Send",
+    "sending": "Sending…",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "emptyState": "Open or create a request to get started",
+    "tabs": {
+      "params": "Params",
+      "headers": "Headers",
+      "body": "Body",
+      "auth": "Auth",
+      "scripts": "Scripts",
+      "variables": "Variables"
+    }
+  },
+  "tabs": {
+    "params": "Params",
+    "headers": "Headers",
+    "body": "Body",
+    "auth": "Auth",
+    "preRequest": "Pre-request Script",
+    "postRequest": "Post-request Script",
+    "noBody": "This request has no body",
+    "noAuth": "No authentication",
+    "token": "Token",
+    "username": "Username",
+    "password": "Password",
+    "apiKey": "API Key",
+    "apiKeyHeader": "Header Name"
+  },
+  "response": {
+    "pretty": "Pretty",
+    "raw": "Raw",
+    "headers": "Headers",
+    "timing": "Timing",
+    "error": "Error",
+    "hitSend": "Hit Send to get a response",
+    "truncated": "Response truncated (> 50 KB)"
+  },
+  "env": {
+    "createTitle": "New Environment",
+    "editTitle": "Edit Environment",
+    "namePlaceholder": "Environment name",
+    "variables": "Variables",
+    "keyPlaceholder": "Variable name",
+    "valuePlaceholder": "Value",
+    "addVariable": "Add variable",
+    "save": "Save",
+    "noEnvironment": "No Environment"
+  },
+  "variables": {
+    "title": "Variables",
+    "keyHeader": "Variable",
+    "scopeHeader": "Scope",
+    "valueHeader": "Resolved Value",
+    "unresolved": "Unresolved",
+    "secret": "Secret",
+    "masked": "••••••••"
+  },
+  "kvEditor": {
+    "key": "Key",
+    "value": "Value",
+    "description": "Description",
+    "addRow": "Add row"
+  },
+  "common": {
+    "new": "New",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "rename": "Rename",
+    "confirm": "Confirm",
+    "name": "Name",
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "toggleSecret": "Toggle secret",
+    "removeRow": "Remove row",
+    "signOut": "Sign out",
+    "profile": "Profile",
+    "theme": "Theme",
+    "language": "Language"
+  },
+  "history": {
+    "title": "History",
+    "empty": "No history yet",
+    "replay": "Open in tab",
+    "loadMore": "Load more"
+  },
+  "confirm": {
+    "deleteTitle": "Delete '{name}'?",
+    "deleteMessage": "This action cannot be undone.",
+    "deleteButton": "Delete",
+    "renameTitle": "Rename",
+    "renameLabel": "New name"
+  }
+}
