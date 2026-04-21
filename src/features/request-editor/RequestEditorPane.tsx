@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { X, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Plus } from 'lucide-react'
 import { useRequestStore } from '@/store/request.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
+import { useCollectionStore } from '@/store/collection.store'
 import { cn } from '@/components/ui/cn'
 import UrlBar from './UrlBar'
 import ParamsTab from './ParamsTab'
@@ -46,18 +47,12 @@ export default function RequestEditorPane() {
     updateSnapshot,
     saveRequest,
   } = useRequestStore()
-  const { environments, activeEnvironmentId, setActiveEnvironment } = useEnvironmentStore()
-  const { workspace } = useWorkspaceStore()
+  const { environments, activeEnvironmentId, setActiveEnvironment, updateEnvironment } = useEnvironmentStore()
+  const { workspace, updateGlobalVariables } = useWorkspaceStore()
+  const { collections, updateCollection } = useCollectionStore()
   const [editorTab, setEditorTab] = useState<EditorTab>('params')
   const [saving, setSaving] = useState(false)
-  const tabScrollRef = useRef<HTMLDivElement>(null)
-
   const handleSaveRef = useRef<() => void>(() => {})
-
-  const scrollTabs = useCallback((dir: 'left' | 'right') => {
-    const el = tabScrollRef.current
-    if (el) el.scrollBy({ left: dir === 'left' ? -120 : 120, behavior: 'smooth' })
-  }, [])
 
   const activeEnv = environments.find(e => e.id === activeEnvironmentId)
   const envVars = Object.fromEntries(
@@ -73,11 +68,20 @@ export default function RequestEditorPane() {
       .map(v => [v.key, v.value])
   )
 
-  // Merged for UI preview: global < env (local is kept separate — wins at render time)
-  const previewVars = { ...globalVars, ...envVars }
+  const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
+  const activeCollection = activeTab?.collectionId
+    ? collections.find(c => c.id === activeTab.collectionId)
+    : null
+  const collectionVars = Object.fromEntries(
+    (activeCollection?.variables ?? [])
+      .filter(v => v.enabled)
+      .map(v => [v.key, v.value])
+  )
+
+  // Merged for UI preview: global < collection < env (local is kept separate — wins at render time)
+  const previewVars = { ...globalVars, ...collectionVars, ...envVars }
 
   const snap = activeTabId ? snapshots[activeTabId] : null
-  const activeTab = activeTabId ? tabs.find(t => t.id === activeTabId) : null
 
   function newTab() {
     openTab({ id: nanoidLocal(), title: t('newTab') })
@@ -187,18 +191,11 @@ export default function RequestEditorPane() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Tab bar with scroll arrows */}
+      {/* Tab bar */}
       <div className="flex items-center border-b border-th-border bg-th-surface">
-        <button
-          onClick={() => scrollTabs('left')}
-          className="shrink-0 px-1.5 py-2 text-th-fg-muted hover:text-th-fg"
-        >
-          <ChevronLeft size={12} />
-        </button>
         <div
-          ref={tabScrollRef}
-          className="flex flex-1 items-stretch gap-0 overflow-x-auto scrollbar-none"
-          style={{ scrollbarWidth: 'none' }}
+          className="flex min-w-0 flex-1 items-stretch gap-0 overflow-x-auto scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {tabs.map(tab => {
             const tabSnap = snapshots[tab.id]
@@ -237,12 +234,6 @@ export default function RequestEditorPane() {
             <Plus size={13} />
           </button>
         </div>
-        <button
-          onClick={() => scrollTabs('right')}
-          className="shrink-0 px-1.5 py-2 text-th-fg-muted hover:text-th-fg"
-        >
-          <ChevronRight size={12} />
-        </button>
       </div>
 
       {!snap ? (
@@ -283,7 +274,9 @@ export default function RequestEditorPane() {
             onSend={handleSend}
             sending={snap.sending}
             localScope={snap.localScope}
-            environmentVariables={previewVars}
+            environmentVariables={envVars}
+            collectionVariables={collectionVars}
+            globalVariables={globalVars}
             onSave={activeTab?.requestId ? handleSave : undefined}
             isDirty={activeTab?.isDirty ?? false}
             saving={saving}
@@ -292,7 +285,67 @@ export default function RequestEditorPane() {
                 localScope: { ...snap.localScope, [name]: value },
               })
             }
+            hasCollection={!!activeTab?.collectionId}
+            hasEnvironment={!!activeEnvironmentId}
+            collectionName={activeCollection?.name}
+            environmentName={activeEnv?.name}
+            onNavigateToVariables={() => setEditorTab('variables')}
+            onSaveVar={async (scope, name, value) => {
+              if (scope === 'collection' && activeTab?.collectionId) {
+                const col = collections.find(c => c.id === activeTab!.collectionId)
+                if (!col) throw new Error('Collection not found')
+                const existing = col.variables ?? []
+                const idx = existing.findIndex(v => v.key === name)
+                const newVars = idx >= 0
+                  ? existing.map((v, i) => i === idx ? { ...v, value } : v)
+                  : [...existing, { key: name, value, enabled: true }]
+                await updateCollection(activeTab!.collectionId!, { variables: newVars })
+              } else if (scope === 'environment' && activeEnvironmentId) {
+                const env = environments.find(e => e.id === activeEnvironmentId)
+                if (!env) throw new Error('Environment not found')
+                const existing = env.variables ?? []
+                const idx = existing.findIndex(v => v.key === name)
+                const newVars = idx >= 0
+                  ? existing.map((v, i) => i === idx ? { ...v, value } : v)
+                  : [...existing, { key: name, value, enabled: true }]
+                await updateEnvironment(activeEnvironmentId, { variables: newVars })
+              } else if (scope === 'global') {
+                if (!workspace) throw new Error('Workspace not loaded')
+                const existing = workspace.globalVariables ?? []
+                const idx = existing.findIndex(v => v.key === name)
+                const newVars = idx >= 0
+                  ? existing.map((v, i) => i === idx ? { ...v, value } : v)
+                  : [...existing, { key: name, value, enabled: true }]
+                await updateGlobalVariables(newVars)
+              } else {
+                throw new Error(`Cannot save: scope '${scope}' is not available`)
+              }
+              // After saving to a persistent scope, evict the local override so the saved scope wins
+              if (activeTabId && name in (snapshots[activeTabId]?.localScope ?? {})) {
+                const newLocal = { ...snapshots[activeTabId].localScope }
+                delete newLocal[name]
+                updateSnapshot(activeTabId, { localScope: newLocal })
+              }
+            }}
           />
+
+          {/* Context bar: collection badge + variables navigation */}
+          <div className="flex items-center border-b border-th-border bg-th-surface px-4 py-1">
+            <div className="flex-1">
+              {activeCollection && (
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium bg-orange-500/20 text-orange-300">
+                  <span className="font-bold">C</span>
+                  <span>{activeCollection.name}</span>
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setEditorTab('variables')}
+              className="text-[11px] text-th-fg-muted transition-colors hover:text-th-accent"
+            >
+              Variables in request →
+            </button>
+          </div>
 
           {/* Vertical split: request editor top, response bottom */}
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -360,7 +413,9 @@ export default function RequestEditorPane() {
                 {editorTab === 'variables' && (
                   <VariablesPanel
                     localScope={snap.localScope}
-                    environmentVariables={previewVars}
+                    environmentVariables={envVars}
+                    collectionVariables={collectionVars}
+                    globalVariables={globalVars}
                     url={snap.url}
                     headers={snap.headers}
                     params={snap.params}

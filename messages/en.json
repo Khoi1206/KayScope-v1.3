@@ -115,7 +115,23 @@
     "signOut": "Sign out",
     "profile": "Profile",
     "theme": "Theme",
-    "language": "Language"
+    "language": "Language",
+    "newCollection": "New Collection"
+  },
+  "collection": {
+    "addRequest": "Add Request",
+    "addFolder": "Add Folder",
+    "run": "Run Collection",
+    "variables": "Collection Variables",
+    "delete": "Delete Collection",
+    "deleteFolder": "Delete Folder",
+    "deleteRequest": "Delete Request",
+    "folderNamePrompt": "Folder name",
+    "requestNamePrompt": "Request name",
+    "empty": "Empty collection",
+    "deleteConfirm": "Delete collection \"{name}\"? This will also delete all folders and requests inside it.",
+    "deleteFolderConfirm": "Delete folder \"{name}\"?",
+    "deleteRequestConfirm": "Delete request \"{name}\"?"
   },
   "globals": {
     "title": "Global Variables",
@@ -124,6 +140,7 @@
   },
   "import": {
     "curl": "Import cURL",
+    "collection": "Import Collection",
     "title": "Import from cURL",
     "curlPlaceholder": "Paste your cURL command here…",
     "import": "Import",

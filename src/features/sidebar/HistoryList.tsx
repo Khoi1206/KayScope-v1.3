@@ -82,28 +82,28 @@ export default function HistoryList() {
   }
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col">
       {items.map(entry => (
         <button
           key={entry.id}
           onClick={() => handleReplay(entry)}
-          className="flex flex-col gap-0.5 rounded px-2 py-2 text-left hover:bg-th-surface-hover"
+          className="group flex flex-col gap-0.5 border-b border-th-border/40 px-3 py-2.5 text-left transition-colors hover:bg-th-surface-hover"
         >
           <div className="flex items-center gap-2">
-            <span className={cn('w-12 shrink-0 font-mono text-xs font-semibold', METHOD_COLORS[entry.method] ?? 'text-th-fg-muted')}>
+            <span className={cn('shrink-0 font-mono text-[11px] font-bold', METHOD_COLORS[entry.method] ?? 'text-th-fg-muted')}>
               {entry.method}
             </span>
             {entry.status && (
-              <span className={cn('text-xs font-medium', statusColor(entry.status))}>
+              <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums', statusColor(entry.status))}>
                 {entry.status}
               </span>
             )}
             {entry.durationMs && (
-              <span className="text-xs text-th-fg-subtle">{entry.durationMs}ms</span>
+              <span className="ml-auto font-mono text-[11px] text-th-fg-subtle">{entry.durationMs}ms</span>
             )}
           </div>
           <span className="truncate font-mono text-xs text-th-fg-muted">{entry.url}</span>
-          <span className="text-xs text-th-fg-subtle">{dayjs(entry.createdAt).fromNow()}</span>
+          <span className="text-[11px] text-th-fg-subtle">{dayjs(entry.createdAt).fromNow()}</span>
         </button>
       ))}
 
@@ -111,7 +111,7 @@ export default function HistoryList() {
         <button
           onClick={() => load(nextCursor)}
           disabled={loading}
-          className="mt-1 px-3 py-2 text-xs text-th-accent hover:underline disabled:opacity-50"
+          className="px-3 py-2.5 text-xs text-th-accent transition-colors hover:text-th-fg disabled:opacity-50"
         >
           {loading ? '…' : t('loadMore')}
         </button>

@@ -13,6 +13,8 @@ interface VarEntry {
 interface Props {
   localScope: Record<string, string>
   environmentVariables: Record<string, string>
+  collectionVariables?: Record<string, string>
+  globalVariables?: Record<string, string>
   url: string
   headers: Array<{ key: string; value: string; enabled: boolean }>
   params: Array<{ key: string; value: string; enabled: boolean }>
@@ -30,7 +32,7 @@ function extractVarNames(text: string): string[] {
   return names
 }
 
-export default function VariablesPanel({ localScope, environmentVariables, url, headers, params }: Props) {
+export default function VariablesPanel({ localScope, environmentVariables, collectionVariables = {}, globalVariables = {}, url, headers, params }: Props) {
   const t = useTranslations('variables')
 
   // Collect all var names referenced in the current request
@@ -41,15 +43,18 @@ export default function VariablesPanel({ localScope, environmentVariables, url, 
   ]
   const referencedNames = [...new Set(texts.flatMap(extractVarNames))]
 
-  // Build a merged lookup (local overrides env)
-  const allResolved: Record<string, string> = { ...environmentVariables, ...localScope }
-
   const entries: VarEntry[] = referencedNames.map(name => {
     if (name in localScope) {
       return { name, scope: 'local', value: localScope[name]!, resolved: true }
     }
     if (name in environmentVariables) {
       return { name, scope: 'environment', value: environmentVariables[name]!, resolved: true }
+    }
+    if (name in collectionVariables) {
+      return { name, scope: 'collection', value: collectionVariables[name]!, resolved: true }
+    }
+    if (name in globalVariables) {
+      return { name, scope: 'global', value: globalVariables[name]!, resolved: true }
     }
     return { name, scope: '—', value: '', resolved: false }
   })
@@ -60,8 +65,6 @@ export default function VariablesPanel({ localScope, environmentVariables, url, 
       entries.push({ name: key, scope: 'local', value, resolved: true })
     }
   }
-
-  void allResolved
 
   if (entries.length === 0) {
     return (
@@ -75,22 +78,26 @@ export default function VariablesPanel({ localScope, environmentVariables, url, 
     <div className="p-4">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-th-border text-left text-th-fg-muted">
-            <th className="pb-2 pr-4 font-medium">{t('keyHeader')}</th>
-            <th className="pb-2 pr-4 font-medium">{t('scopeHeader')}</th>
-            <th className="pb-2 font-medium">{t('valueHeader')}</th>
+          <tr className="border-b border-th-border">
+            <th className="pb-2 pr-4 text-left text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">{t('keyHeader')}</th>
+            <th className="pb-2 pr-4 text-left text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">{t('scopeHeader')}</th>
+            <th className="pb-2 text-left text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">{t('valueHeader')}</th>
           </tr>
         </thead>
         <tbody>
           {entries.map(entry => (
-            <tr key={entry.name} className="border-b border-th-border/50">
-              <td className="py-1.5 pr-4 font-mono text-th-fg">{entry.name}</td>
-              <td className="py-1.5 pr-4 text-th-fg-muted">{entry.scope}</td>
-              <td className="py-1.5">
+            <tr key={entry.name} className="border-b border-th-border/40 transition-colors hover:bg-th-surface-hover/40">
+              <td className="py-2 pr-4 font-mono text-th-fg">{`{{${entry.name}}}`}</td>
+              <td className="py-2 pr-4">
+                <span className="rounded-md bg-th-surface px-2 py-0.5 text-[11px] font-medium text-th-fg-muted">
+                  {entry.scope}
+                </span>
+              </td>
+              <td className="py-2">
                 {entry.resolved ? (
-                  <span className="font-mono text-th-accent">{entry.value || '(empty)'}</span>
+                  <span className="font-mono text-th-accent">{entry.value || <span className="text-th-fg-subtle italic">empty</span>}</span>
                 ) : (
-                  <span className="text-yellow-400">{t('unresolved')}</span>
+                  <span className="rounded-md bg-yellow-500/10 px-2 py-0.5 text-[11px] font-medium text-yellow-400">{t('unresolved')}</span>
                 )}
               </td>
             </tr>

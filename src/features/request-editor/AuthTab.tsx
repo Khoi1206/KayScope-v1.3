@@ -15,23 +15,19 @@ export default function AuthTab({ auth, onChange }: Props) {
   const t = useTranslations('tabs')
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      {/* Type selector */}
-      <div className="flex flex-wrap gap-1">
-        {AUTH_TYPES.map(type => (
-          <button
-            key={type}
-            onClick={() => onChange({ ...auth, type })}
-            className={cn(
-              'rounded px-2 py-0.5 text-xs',
-              auth.type === type
-                ? 'bg-th-accent text-white'
-                : 'border border-th-border text-th-fg-muted hover:text-th-fg'
-            )}
-          >
-            {type}
-          </button>
-        ))}
+    <div className="flex flex-col gap-4 p-4">
+      {/* Auth type selector */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-medium text-th-fg-muted">{t('auth')}</span>
+        <select
+          value={auth.type}
+          onChange={e => onChange({ ...auth, type: e.target.value as typeof AUTH_TYPES[number] })}
+          className="rounded-md border border-th-border bg-th-input px-2 py-1.5 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
+        >
+          {AUTH_TYPES.map(type => (
+            <option key={type} value={type}>{type}</option>
+          ))}
+        </select>
       </div>
 
       {auth.type === 'none' && (

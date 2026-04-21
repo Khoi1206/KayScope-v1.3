@@ -15,6 +15,10 @@ export interface ScriptContext {
     headers: Record<string, string>
     body: unknown
   }
+  /** Current iteration's data row (collection runner only) */
+  iterationData?: Record<string, string>
+  /** 0-based iteration index (collection runner only) */
+  iteration?: number
 }
 
 export interface ScriptMutations {

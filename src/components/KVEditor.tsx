@@ -59,9 +59,10 @@ export default function KVEditor({
   }
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col">
+      {/* Header */}
       <div className={cn(
-        'grid gap-2 px-2 py-1 text-xs font-medium text-th-fg-muted',
+        'grid gap-2 border-b border-th-border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle',
         showDescription ? 'grid-cols-[20px_1fr_1fr_1fr_28px]' : 'grid-cols-[20px_1fr_1fr_28px]'
       )}>
         <span /><span>{t('key')}</span><span>{t('value')}</span>
@@ -71,7 +72,7 @@ export default function KVEditor({
 
       {rows.map((row, i) => (
         <div key={i} className={cn(
-          'grid items-start gap-2 px-2 py-0.5',
+          'group grid items-start gap-2 border-b border-th-border/50 px-2 py-1 transition-colors hover:bg-th-surface-hover/40',
           showDescription ? 'grid-cols-[20px_1fr_1fr_1fr_28px]' : 'grid-cols-[20px_1fr_1fr_28px]'
         )}>
           <input
@@ -106,24 +107,24 @@ export default function KVEditor({
               placeholder={t('description')}
               disabled={disabled}
               onChange={e => updateRow(i, { description: e.target.value })}
-              className="w-full rounded border border-th-border bg-th-input px-2 py-1 text-xs text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:ring-1 focus:ring-th-accent"
+              className="w-full rounded-md border border-th-border bg-th-input px-2 py-1 text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
             />
           )}
           <button
             onClick={() => removeRow(i)}
             disabled={disabled}
-            className="mt-0.5 flex items-center justify-center rounded p-1 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-error disabled:opacity-30"
+            className="mt-0.5 flex items-center justify-center rounded-md p-1 text-th-fg-subtle opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100 disabled:opacity-30"
           >
             <Trash2 size={12} />
           </button>
         </div>
       ))}
 
-      <div className="px-2 pt-1">
+      <div className="px-2 py-2">
         <button
           onClick={addRow}
           disabled={disabled}
-          className="flex items-center gap-1 text-xs text-th-fg-muted hover:text-th-fg disabled:opacity-30"
+          className="flex items-center gap-1.5 text-xs text-th-fg-subtle transition-colors hover:text-th-fg disabled:opacity-30"
         >
           <Plus size={12} />
           {t('addRow')}

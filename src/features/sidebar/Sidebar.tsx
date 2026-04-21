@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, FileInput } from 'lucide-react'
+import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal } from 'lucide-react'
 import { useUiStore, type SidebarSection } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
@@ -12,6 +12,7 @@ import HistoryList from './HistoryList'
 import EnvironmentEditor from '../environment/EnvironmentEditor'
 import GlobalVarsEditor from '../variables/GlobalVarsEditor'
 import CurlImportModal from './CurlImportModal'
+import CollectionImportModal from './CollectionImportModal'
 import { cn } from '@/components/ui/cn'
 
 export default function Sidebar() {
@@ -19,6 +20,7 @@ export default function Sidebar() {
   const { sidebarSection, setSidebarSection } = useUiStore()
   const { fetchWorkspace } = useWorkspaceStore()
   const [showCurlImport, setShowCurlImport] = useState(false)
+  const [showCollectionImport, setShowCollectionImport] = useState(false)
 
   useEffect(() => {
     fetchWorkspace()
@@ -55,7 +57,10 @@ export default function Sidebar() {
       {/* Section content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {sidebarSection === 'collections' && (
-          <CollectionsSection onImportCurl={() => setShowCurlImport(true)} />
+          <CollectionsSection
+            onImportCurl={() => setShowCurlImport(true)}
+            onImportCollection={() => setShowCollectionImport(true)}
+          />
         )}
         {sidebarSection === 'environments' && <EnvironmentsSection />}
         {sidebarSection === 'globals' && <GlobalsSection />}
@@ -63,13 +68,15 @@ export default function Sidebar() {
       </div>
 
       {showCurlImport && <CurlImportModal onClose={() => setShowCurlImport(false)} />}
+      {showCollectionImport && <CollectionImportModal onClose={() => setShowCollectionImport(false)} />}
     </aside>
   )
 }
 
-function CollectionsSection({ onImportCurl }: { onImportCurl: () => void }) {
+function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl: () => void; onImportCollection: () => void }) {
   const t = useTranslations()
   const { createCollection } = useCollectionStore()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   async function handleCreate() {
     const name = prompt(t('common.name'))
@@ -86,19 +93,40 @@ function CollectionsSection({ onImportCurl }: { onImportCurl: () => void }) {
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={onImportCurl}
-            title={t('import.curl')}
-            className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
-          >
-            <FileInput size={13} />
-          </button>
-          <button
             onClick={handleCreate}
-            title={t('common.new')}
+            title={t('common.newCollection')}
             className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
           >
             <Plus size={13} />
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              title="More"
+              className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+            >
+              <MoreHorizontal size={13} />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-th-border bg-th-bg py-1 shadow-xl">
+                  <button
+                    onClick={() => { setMenuOpen(false); onImportCollection() }}
+                    className="w-full px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
+                  >
+                    {t('import.collection')}
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); onImportCurl() }}
+                    className="w-full px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
+                  >
+                    {t('import.curl')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-1 pb-4">

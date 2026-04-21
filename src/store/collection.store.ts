@@ -27,6 +27,24 @@ export interface RequestItem {
   method: string
   url: string
   sortOrder: number
+  params?: Array<{ key: string; value: string; enabled: boolean }>
+  headers?: Array<{ key: string; value: string; enabled: boolean }>
+  body?: {
+    type: 'none' | 'json' | 'raw' | 'form-data' | 'x-www-form-urlencoded'
+    content?: string
+    formData?: Array<{ key: string; value: string; enabled: boolean }>
+    rawType?: string
+  }
+  auth?: {
+    type: 'none' | 'bearer' | 'basic' | 'api-key'
+    token?: string
+    username?: string
+    password?: string
+    apiKey?: string
+    apiKeyHeader?: string
+  }
+  preRequestScript?: string
+  postRequestScript?: string
 }
 
 interface CollectionStore {

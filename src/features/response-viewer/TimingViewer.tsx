@@ -18,30 +18,39 @@ export default function TimingViewer({ response }: Props) {
   const barColor = response.durationMs < 200 ? 'bg-green-500' : response.durationMs < 1000 ? 'bg-yellow-500' : 'bg-red-400'
 
   return (
-    <div className="px-4 py-4 text-xs">
-      <div className="flex flex-col gap-2">
-        <TimingRow label="Status" value={response.status > 0 ? `${response.status} ${response.statusText}` : 'Error'} />
-        <TimingRow label="Response size" value={formatSize(response.size)} />
-        <div className="flex items-center justify-between">
-          <span className="text-th-fg-muted">Duration</span>
-          <span className="flex items-center gap-2 font-mono font-medium">
-            <span className="text-th-fg">{response.durationMs} ms</span>
-            <span className={color}>{label}</span>
-          </span>
-        </div>
+    <div className="p-5 text-xs">
+      {/* Stat cards */}
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        <StatCard
+          label="Status"
+          value={response.status > 0 ? `${response.status}` : 'Error'}
+          sub={response.statusText}
+          valueClass={response.status >= 200 && response.status < 300 ? 'text-green-400' : 'text-red-400'}
+        />
+        <StatCard
+          label="Duration"
+          value={`${response.durationMs}`}
+          sub={`ms · ${label}`}
+          valueClass={color}
+        />
+        <StatCard
+          label="Size"
+          value={formatSize(response.size)}
+          valueClass="text-th-fg"
+        />
       </div>
 
       {response.durationMs > 0 && (
-        <div className="mt-5">
-          <div className="h-2 overflow-hidden rounded-full bg-th-surface-hover">
+        <div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-th-surface-hover">
             <div
               className={`h-full rounded-full transition-all ${barColor}`}
               style={{ width: `${barWidth}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-th-fg-subtle">
+          <div className="mt-1.5 flex justify-between text-th-fg-subtle">
             <span>0 ms</span>
-            <span>5000 ms</span>
+            <span>5 000 ms</span>
           </div>
         </div>
       )}
@@ -49,11 +58,12 @@ export default function TimingViewer({ response }: Props) {
   )
 }
 
-function TimingRow({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, sub, valueClass }: { label: string; value: string; sub?: string; valueClass: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-th-fg-muted">{label}</span>
-      <span className="font-mono font-medium text-th-fg">{value}</span>
+    <div className="rounded-lg border border-th-border bg-th-surface p-3">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">{label}</p>
+      <p className={`font-mono text-base font-bold ${valueClass}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-th-fg-muted">{sub}</p>}
     </div>
   )
 }

@@ -89,11 +89,22 @@ function buildPmApi(ctx, tests, logs) {
     return key in all ? all[key] : `{{${key}}}`
   })
 
+  const iterData = ctx.iterationData ?? {}
   const pmApi = {
     variables: varScope,
     environment: makeVarScope(ctx.environment, mutations.environment),
     collectionVariables: makeVarScope(ctx.collection, mutations.collection),
     globals: makeVarScope(ctx.global, mutations.global),
+
+    iterationData: {
+      get: (key) => iterData[key] ?? undefined,
+      has: (key) => key in iterData,
+      toObject: () => ({ ...iterData }),
+    },
+
+    execution: {
+      iteration: ctx.iteration ?? 0,
+    },
 
     request: ctx.request ?? null,
 

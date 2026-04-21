@@ -1,19 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useCollectionStore, type CollectionItem } from '@/store/collection.store'
 import { useRequestStore } from '@/store/request.store'
 import {
   ChevronRight,
   ChevronDown,
   Folder,
-  FolderPlus,
-  FilePlus,
   Trash2,
-  SlidersHorizontal,
+  MoreHorizontal,
+  Plus,
 } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import CollectionVarsEditor from '../environment/CollectionVarsEditor'
+import CollectionRunnerModal from '@/features/runner/CollectionRunnerModal'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-500',
@@ -26,6 +27,7 @@ const METHOD_COLORS: Record<string, string> = {
 }
 
 export default function CollectionTree() {
+  const t = useTranslations()
   const {
     collections,
     folders,
@@ -43,6 +45,7 @@ export default function CollectionTree() {
   } = useCollectionStore()
   const openTab = useRequestStore(s => s.openTab)
   const [editingVars, setEditingVars] = useState<CollectionItem | null>(null)
+  const [runningCollection, setRunningCollection] = useState<CollectionItem | null>(null)
 
   async function handleExpandCollection(colId: string) {
     toggleExpanded(colId)
@@ -55,21 +58,26 @@ export default function CollectionTree() {
     const reqList = requests[colId] ?? []
     const req = reqList.find(r => r.id === requestId)
     if (!req) return
-    openTab(
-      { id: requestId, title: req.name, requestId, collectionId: colId },
-      { method: req.method, url: req.url }
-    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const snapshot: Record<string, any> = { method: req.method, url: req.url }
+    if (req.params?.length) snapshot.params = req.params
+    if (req.headers?.length) snapshot.headers = req.headers
+    if (req.body && req.body.type !== 'none') snapshot.body = req.body
+    if (req.auth && req.auth.type !== 'none') snapshot.auth = req.auth
+    if (req.preRequestScript) snapshot.preRequestScript = req.preRequestScript
+    if (req.postRequestScript) snapshot.postRequestScript = req.postRequestScript
+    openTab({ id: requestId, title: req.name, requestId, collectionId: colId }, snapshot)
   }
 
   async function handleAddFolder(colId: string, parentFolderId?: string) {
-    const name = prompt('Folder name')
+    const name = prompt(t('collection.folderNamePrompt'))
     if (!name?.trim()) return
     await createFolder(colId, name.trim(), parentFolderId)
     setExpanded(colId, true)
   }
 
   async function handleAddRequest(colId: string, folderId?: string) {
-    const name = prompt('Request name')
+    const name = prompt(t('collection.requestNamePrompt'))
     if (!name?.trim()) return
     const req = await createRequest(colId, name.trim(), folderId)
     setExpanded(colId, true)
@@ -81,24 +89,24 @@ export default function CollectionTree() {
   }
 
   async function handleDeleteCollection(colId: string, name: string) {
-    if (!confirm(`Delete collection "${name}"? This will also delete all folders and requests inside it.`)) return
+    if (!confirm(t('collection.deleteConfirm', { name }))) return
     await deleteCollection(colId)
   }
 
   async function handleDeleteFolder(id: string, colId: string, name: string) {
-    if (!confirm(`Delete folder "${name}"?`)) return
+    if (!confirm(t('collection.deleteFolderConfirm', { name }))) return
     await deleteFolder(id, colId)
   }
 
   async function handleDeleteRequest(id: string, colId: string, name: string) {
-    if (!confirm(`Delete request "${name}"?`)) return
+    if (!confirm(t('collection.deleteRequestConfirm', { name }))) return
     await deleteRequest(id, colId)
   }
 
   if (collections.length === 0) {
     return (
       <p className="px-3 py-4 text-xs text-th-fg-subtle">
-        No collections yet. Create one to get started.
+        {t('sidebar.noCollections')}
       </p>
     )
   }
@@ -128,22 +136,21 @@ export default function CollectionTree() {
                 <span className="truncate text-th-fg">{col.name}</span>
               </button>
               <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                <ActionBtn title="Collection variables" onClick={() => setEditingVars(col)}>
-                  <SlidersHorizontal size={12} />
-                </ActionBtn>
-                <ActionBtn title="Add folder" onClick={() => handleAddFolder(col.id)}>
-                  <FolderPlus size={12} />
-                </ActionBtn>
-                <ActionBtn title="Add request" onClick={() => handleAddRequest(col.id)}>
-                  <FilePlus size={12} />
-                </ActionBtn>
-                <ActionBtn
-                  title="Delete collection"
-                  onClick={() => handleDeleteCollection(col.id, col.name)}
-                  danger
-                >
-                  <Trash2 size={12} />
-                </ActionBtn>
+                <DropdownMenu
+                  trigger={<Plus size={12} />}
+                  items={[
+                    { label: t('collection.addRequest'), onClick: () => handleAddRequest(col.id) },
+                    { label: t('collection.addFolder'), onClick: () => handleAddFolder(col.id) },
+                  ]}
+                />
+                <DropdownMenu
+                  trigger={<MoreHorizontal size={12} />}
+                  items={[
+                    { label: t('collection.run'), onClick: () => setRunningCollection(col) },
+                    { label: t('collection.variables'), onClick: () => setEditingVars(col) },
+                    { label: t('collection.delete'), onClick: () => handleDeleteCollection(col.id, col.name), danger: true },
+                  ]}
+                />
               </div>
             </div>
 
@@ -175,7 +182,7 @@ export default function CollectionTree() {
                 ))}
 
                 {colFolders.length === 0 && topLevelRequests.length === 0 && (
-                  <p className="py-1 text-xs text-th-fg-subtle">Empty collection</p>
+                  <p className="py-1 text-xs text-th-fg-subtle">{t('collection.empty')}</p>
                 )}
               </div>
             )}
@@ -190,37 +197,53 @@ export default function CollectionTree() {
         onClose={() => setEditingVars(null)}
       />
     )}
+    {runningCollection && (
+      <CollectionRunnerModal
+        collectionId={runningCollection.id}
+        collectionName={runningCollection.name}
+        onClose={() => setRunningCollection(null)}
+      />
+    )}
     </>
   )
 }
 
-function ActionBtn({
-  title,
-  onClick,
-  danger,
-  children,
+function DropdownMenu({
+  trigger,
+  items,
 }: {
-  title: string
-  onClick: (e: React.MouseEvent) => void
-  danger?: boolean
-  children: React.ReactNode
+  trigger: React.ReactNode
+  items: { label: string; onClick: () => void; danger?: boolean }[]
 }) {
+  const [open, setOpen] = useState(false)
   return (
-    <button
-      title={title}
-      onClick={e => {
-        e.stopPropagation()
-        onClick(e)
-      }}
-      className={cn(
-        'rounded p-0.5',
-        danger
-          ? 'text-th-fg-muted hover:text-red-400'
-          : 'text-th-fg-muted hover:text-th-fg'
+    <div className="relative">
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        className="rounded p-0.5 text-th-fg-muted hover:text-th-fg"
+      >
+        {trigger}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setOpen(false) }} />
+          <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-md border border-th-border bg-th-bg py-1 shadow-xl">
+            {items.map(item => (
+              <button
+                key={item.label}
+                onClick={e => { e.stopPropagation(); setOpen(false); item.onClick() }}
+                className={cn(
+                  'w-full px-3 py-1.5 text-left text-xs hover:bg-th-surface-hover',
+                  item.danger ? 'text-red-400' : 'text-th-fg'
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
-    >
-      {children}
-    </button>
+    </div>
   )
 }
 
@@ -250,9 +273,13 @@ function RequestRow({
         <span className="truncate text-th-fg">{req.name}</span>
       </button>
       <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
-        <ActionBtn title="Delete request" onClick={e => { e.stopPropagation(); onDelete() }} danger>
+        <button
+          title="Delete request"
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
+        >
           <Trash2 size={12} />
-        </ActionBtn>
+        </button>
       </div>
     </div>
   )
@@ -279,6 +306,7 @@ function FolderRow({
   onDeleteFolder: (id: string, name: string) => void
   onDeleteRequest: (id: string, name: string) => void
 }) {
+  const t = useTranslations()
   const isOpen = !!expanded[folder.id]
   const childFolders = allFolders.filter(f => f.parentFolderId === folder.id)
   const childRequests = allRequests.filter(r => r.folderId === folder.id)
@@ -298,17 +326,14 @@ function FolderRow({
           <Folder size={12} className="shrink-0 text-th-fg-muted" />
           <span className="truncate text-th-fg">{folder.name}</span>
         </button>
-        <div className="hidden shrink-0 items-center gap-0.5 pr-1 group-hover:flex">
-          <ActionBtn title="Add request" onClick={() => onAddRequest(folder.id)}>
-            <FilePlus size={12} />
-          </ActionBtn>
-          <ActionBtn
-            title="Delete folder"
-            onClick={() => onDeleteFolder(folder.id, folder.name)}
-            danger
-          >
-            <Trash2 size={12} />
-          </ActionBtn>
+        <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
+          <DropdownMenu
+            trigger={<MoreHorizontal size={12} />}
+            items={[
+              { label: t('collection.addRequest'), onClick: () => onAddRequest(folder.id) },
+              { label: t('collection.deleteFolder'), onClick: () => onDeleteFolder(folder.id, folder.name), danger: true },
+            ]}
+          />
         </div>
       </div>
 

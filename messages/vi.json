@@ -115,7 +115,23 @@
     "signOut": "Đăng xuất",
     "profile": "Hồ sơ",
     "theme": "Giao diện",
-    "language": "Ngôn ngữ"
+    "language": "Ngôn ngữ",
+    "newCollection": "Bộ sưu tập mới"
+  },
+  "collection": {
+    "addRequest": "Thêm request",
+    "addFolder": "Thêm thư mục",
+    "run": "Chạy collection",
+    "variables": "Biến collection",
+    "delete": "Xóa collection",
+    "deleteFolder": "Xóa thư mục",
+    "deleteRequest": "Xóa request",
+    "folderNamePrompt": "Tên thư mục",
+    "requestNamePrompt": "Tên request",
+    "empty": "Collection trống",
+    "deleteConfirm": "Xóa collection \"{name}\"? Hành động này cũng sẽ xóa tất cả thư mục và request bên trong.",
+    "deleteFolderConfirm": "Xóa thư mục \"{name}\"?",
+    "deleteRequestConfirm": "Xóa request \"{name}\"?"
   },
   "globals": {
     "title": "Biến toàn cục",
@@ -124,6 +140,7 @@
   },
   "import": {
     "curl": "Nhập cURL",
+    "collection": "Nhập Collection",
     "title": "Nhập từ cURL",
     "curlPlaceholder": "Dán lệnh cURL của bạn vào đây…",
     "import": "Nhập",

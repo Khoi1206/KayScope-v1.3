@@ -21,70 +21,65 @@ export default function BodyTab({ body, onChange, localScope, environmentVariabl
   const t = useTranslations('tabs')
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      {/* Body type selector */}
-      <div className="flex flex-wrap gap-1">
+    <div className="flex flex-col">
+      {/* Body type tab strip */}
+      <div className="flex items-center border-b border-th-border px-3">
         {BODY_TYPES.map(type => (
           <button
             key={type}
             onClick={() => onChange({ ...body, type })}
             className={cn(
-              'rounded px-2 py-0.5 text-xs',
+              'relative px-3 py-2 text-xs font-medium transition-colors',
               body.type === type
-                ? 'bg-th-accent text-white'
-                : 'border border-th-border text-th-fg-muted hover:text-th-fg'
+                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-th-accent'
+                : 'text-th-fg-muted hover:text-th-fg'
             )}
           >
             {type}
           </button>
         ))}
+
+        {/* Raw type select — shown inline when raw is active */}
+        {body.type === 'raw' && (
+          <select
+            value={body.rawType ?? 'text'}
+            onChange={e => onChange({ ...body, rawType: e.target.value as typeof RAW_TYPES[number] })}
+            className="rounded border border-th-border bg-th-input px-2 py-1 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
+          >
+            {RAW_TYPES.map(rt => (
+              <option key={rt} value={rt}>{rt}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Body content */}
-      {body.type === 'none' && (
-        <p className="text-xs text-th-fg-subtle">{t('noBody')}</p>
-      )}
+      <div className="p-3">
+        {body.type === 'none' && (
+          <p className="text-xs text-th-fg-subtle">{t('noBody')}</p>
+        )}
 
-      {(body.type === 'json' || body.type === 'raw') && (
-        <div>
-          {body.type === 'raw' && (
-            <div className="mb-2 flex gap-1">
-              {RAW_TYPES.map(rt => (
-                <button
-                  key={rt}
-                  onClick={() => onChange({ ...body, rawType: rt })}
-                  className={cn(
-                    'rounded px-2 py-0.5 text-xs',
-                    body.rawType === rt
-                      ? 'bg-th-accent text-white'
-                      : 'border border-th-border text-th-fg-muted hover:text-th-fg'
-                  )}
-                >
-                  {rt}
-                </button>
-              ))}
-            </div>
-          )}
+        {(body.type === 'json' || body.type === 'raw') && (
           <MonacoEditor
             value={body.content}
             onChange={content => onChange({ ...body, content })}
             language={body.type === 'json' ? 'json' : (body.rawType ?? 'plaintext')}
             height="180px"
           />
-        </div>
-      )}
+        )}
 
-      {(body.type === 'form-data' || body.type === 'x-www-form-urlencoded') && (
-        <KVEditor
-          rows={body.formData ?? []}
-          onChange={rows => onChange({ ...body, formData: rows })}
-          keyPlaceholder="Field"
-          valuePlaceholder="Value"
-          localScope={localScope}
-          environmentVariables={environmentVariables}
-          onSetLocalVar={onSetLocalVar}
-        />
-      )}
+        {(body.type === 'form-data' || body.type === 'x-www-form-urlencoded') && (
+          <KVEditor
+            rows={body.formData ?? []}
+            onChange={rows => onChange({ ...body, formData: rows })}
+            keyPlaceholder="Field"
+            valuePlaceholder="Value"
+            localScope={localScope}
+            environmentVariables={environmentVariables}
+            onSetLocalVar={onSetLocalVar}
+          />
+        )}
+      </div>
     </div>
   )
 }

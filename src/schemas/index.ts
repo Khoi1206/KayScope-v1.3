@@ -140,3 +140,14 @@ export const executeSchema = z.object({
 })
 
 export type ExecuteInput = z.infer<typeof executeSchema>
+
+// ── Runner ─────────────────────────────────────────────────────────────────
+
+export const runnerSchema = z.object({
+  collectionId: nonEmpty,
+  environmentId: z.string().optional(),
+  /** Each object is one iteration's data scope. Empty array = single pass. */
+  dataRows: z.array(z.record(z.string())).max(1000).default([]),
+})
+
+export type RunnerInput = z.infer<typeof runnerSchema>
