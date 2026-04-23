@@ -5,6 +5,12 @@ import { findCollectionsByWorkspace, createCollection } from '@/db/queries/colle
 import { createCollectionSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
+import { maskValue } from '@/lib/crypto'
+import type { Variable } from '@/db/schema'
+
+function maskVariables(variables: Variable[]): Variable[] {
+  return variables.map(v => v.secret ? { ...v, value: maskValue() } : v)
+}
 
 export function GET() {
   return withErrorHandler(async () => {
@@ -12,7 +18,7 @@ export function GET() {
     const workspace = await findWorkspaceByOwner(session.user.id)
     if (!workspace) throw new NotFoundError('Workspace not found')
     const cols = await findCollectionsByWorkspace(workspace.id)
-    return NextResponse.json(cols)
+    return NextResponse.json(cols.map(c => ({ ...c, variables: maskVariables(c.variables) })))
   })
 }
 

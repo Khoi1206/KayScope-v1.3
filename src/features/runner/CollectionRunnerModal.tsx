@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Upload, Play, Download, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, Upload, Play, Download, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react'
 import { useRunnerStore } from '@/store/runner.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { parseDataFile, detectFileType, type DataRow } from '@/lib/data-parser'
@@ -53,8 +53,8 @@ export default function CollectionRunnerModal({ collectionId, collectionName, on
     await startRun(collectionId, collectionName, envId || undefined, dataRows)
   }
 
-  function handleExport() {
-    window.open(`/api/collections/${collectionId}/export`, '_blank')
+  function handleExport(format: 'kayscope' | 'postman' = 'kayscope') {
+    window.open(`/api/collections/${collectionId}/export?format=${format}`, '_blank')
   }
 
   const iterCount = dataRows.length > 0 ? dataRows.length : 1
@@ -69,14 +69,7 @@ export default function CollectionRunnerModal({ collectionId, collectionName, on
             <p className="text-sm font-semibold text-th-fg">{collectionName}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleExport}
-              title="Export collection"
-              className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
-            >
-              <Download size={13} />
-              Export
-            </button>
+            <ExportMenu onExport={handleExport} />
             <button onClick={onClose} className="rounded p-1.5 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg">
               <X size={15} />
             </button>
@@ -304,6 +297,41 @@ function RequestResultRow({ result: r }: { result: RequestRunResult }) {
             </div>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+function ExportMenu({ onExport }: { onExport: (format: 'kayscope' | 'postman') => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
+      >
+        <Download size={13} />
+        Export
+        <MoreHorizontal size={11} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-th-border bg-th-bg py-1 shadow-xl">
+            <button
+              onClick={() => { setOpen(false); onExport('kayscope') }}
+              className="w-full px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
+            >
+              KayScope format (.json)
+            </button>
+            <button
+              onClick={() => { setOpen(false); onExport('postman') }}
+              className="w-full px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
+            >
+              Postman v2.1 format
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

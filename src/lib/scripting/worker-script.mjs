@@ -1,18 +1,23 @@
 // Piscina worker — runs user scripts in an isolated worker thread.
 // Plain JS (no TypeScript, no Next.js imports) so it loads cleanly as a Worker.
 
-function makeVarScope(source, mutationsTarget) {
+function makeVarScope(source, mutationsTarget, allScopesFn) {
   return {
     get: (key) => source[key] ?? mutationsTarget[key],
     set: (key, value) => { mutationsTarget[key] = String(value) },
     unset: (key) => { delete mutationsTarget[key] },
     has: (key) => key in source || key in mutationsTarget,
     toObject: () => ({ ...source, ...mutationsTarget }),
+    replaceIn: (str) => String(str).replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+      const all = allScopesFn()
+      return key in all ? all[key] : `{{${key}}}`
+    }),
   }
 }
 
 function buildPmApi(ctx, tests, logs) {
   const mutations = { local: {}, environment: {}, collection: {}, global: {} }
+  const requestMutations = { headers: {}, body: undefined }
 
   const serialize = (a) => {
     if (typeof a === 'string') return a
@@ -37,6 +42,20 @@ function buildPmApi(ctx, tests, logs) {
         if (JSON.stringify(value) !== JSON.stringify(expected))
           throw new Error(`Expected ${JSON.stringify(value)} to deep equal ${JSON.stringify(expected)}`)
       },
+      include: (expected) => {
+        if (typeof value === 'string' && typeof expected === 'string') {
+          if (!value.includes(expected))
+            throw new Error(`Expected "${value}" to include "${expected}"`)
+        } else if (Array.isArray(value)) {
+          if (!value.includes(expected))
+            throw new Error(`Expected array to include ${JSON.stringify(expected)}`)
+        }
+      },
+      match: (regex) => {
+        const re = typeof regex === 'string' ? new RegExp(regex) : regex
+        if (!re.test(String(value)))
+          throw new Error(`Expected "${value}" to match ${re}`)
+      },
       be: {
         ok: () => { if (!value) throw new Error(`Expected ${JSON.stringify(value)} to be truthy`) },
         true: () => { if (value !== true) throw new Error(`Expected true, got ${JSON.stringify(value)}`) },
@@ -52,21 +71,27 @@ function buildPmApi(ctx, tests, logs) {
           if (typeof value !== 'number' || value >= n)
             throw new Error(`Expected ${value} to be below ${n}`)
         },
-      },
-      include: (expected) => {
-        if (typeof value === 'string' && typeof expected === 'string') {
-          if (!value.includes(expected))
-            throw new Error(`Expected "${value}" to include "${expected}"`)
-        } else if (Array.isArray(value)) {
-          if (!value.includes(expected))
-            throw new Error(`Expected array to include ${JSON.stringify(expected)}`)
-        }
+        within: (min, max) => {
+          if (typeof value !== 'number' || value < min || value > max)
+            throw new Error(`Expected ${value} to be within [${min}, ${max}]`)
+        },
       },
       have: {
         status: (status) => {
           const actual = value?.status
           if (actual !== status)
             throw new Error(`Expected status ${status}, got ${actual}`)
+        },
+        length: (n) => {
+          const len = typeof value === 'string' || Array.isArray(value) ? value.length : value?.length
+          if (len !== n)
+            throw new Error(`Expected length ${n}, got ${len}`)
+        },
+        property: (key, expected) => {
+          if (typeof value !== 'object' || value === null || !(key in value))
+            throw new Error(`Expected object to have property "${key}"`)
+          if (expected !== undefined && value[key] !== expected)
+            throw new Error(`Expected property "${key}" to equal ${JSON.stringify(expected)}, got ${JSON.stringify(value[key])}`)
         },
       },
     },
@@ -83,18 +108,27 @@ function buildPmApi(ctx, tests, logs) {
     ...mutations.local,
   })
 
-  const varScope = makeVarScope(ctx.local, mutations.local)
-  varScope.replaceIn = (str) => String(str).replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-    const all = allScopes()
-    return key in all ? all[key] : `{{${key}}}`
-  })
-
   const iterData = ctx.iterationData ?? {}
+
+  // Build pm.request with setHeader/setBody mutation capabilities
+  const requestObj = ctx.request ? {
+    method: ctx.request.method,
+    url: ctx.request.url,
+    headers: { ...ctx.request.headers },
+    body: ctx.request.body,
+    setHeader: (key, value) => {
+      requestMutations.headers[key] = String(value)
+    },
+    setBody: (content) => {
+      requestMutations.body = String(content)
+    },
+  } : null
+
   const pmApi = {
-    variables: varScope,
-    environment: makeVarScope(ctx.environment, mutations.environment),
-    collectionVariables: makeVarScope(ctx.collection, mutations.collection),
-    globals: makeVarScope(ctx.global, mutations.global),
+    variables: makeVarScope(ctx.local, mutations.local, allScopes),
+    environment: makeVarScope(ctx.environment, mutations.environment, allScopes),
+    collectionVariables: makeVarScope(ctx.collection, mutations.collection, allScopes),
+    globals: makeVarScope(ctx.global, mutations.global, allScopes),
 
     iterationData: {
       get: (key) => iterData[key] ?? undefined,
@@ -106,7 +140,7 @@ function buildPmApi(ctx, tests, logs) {
       iteration: ctx.iteration ?? 0,
     },
 
-    request: ctx.request ?? null,
+    request: requestObj,
 
     test: (name, fn) => {
       try {
@@ -120,6 +154,7 @@ function buildPmApi(ctx, tests, logs) {
     expect: makeExpect,
     response: null,
     _mutations: mutations,
+    _requestMutations: requestMutations,
   }
 
   return { pmApi, consoleApi }
@@ -173,6 +208,7 @@ export default async function executeInWorker({ script, ctx, responseForPostScri
 
   return {
     mutations: pmApi._mutations,
+    requestMutations: pmApi._requestMutations,
     tests,
     logs,
     error,

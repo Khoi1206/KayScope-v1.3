@@ -1,17 +1,33 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { cn } from '@/components/ui/cn'
+import { VarAwareInput } from '@/components/KVEditor'
 import type { RequestAuth } from '@/store/request.store'
+import type { SaveScope } from '@/components/VarHoverPopover'
 
 interface Props {
   auth: RequestAuth
   onChange: (auth: RequestAuth) => void
+  localScope?: Record<string, string>
+  environmentVariables?: Record<string, string>
+  collectionVariables?: Record<string, string>
+  globalVariables?: Record<string, string>
+  hasCollection?: boolean
+  hasEnvironment?: boolean
+  collectionName?: string
+  environmentName?: string
+  onSaveVar?: (scope: SaveScope, name: string, value: string) => Promise<void>
+  onNavigateToVariables?: () => void
 }
 
 const AUTH_TYPES = ['none', 'bearer', 'basic', 'api-key'] as const
 
-export default function AuthTab({ auth, onChange }: Props) {
+export default function AuthTab({
+  auth, onChange,
+  localScope, environmentVariables, collectionVariables, globalVariables,
+  hasCollection, hasEnvironment, collectionName, environmentName,
+  onSaveVar, onNavigateToVariables,
+}: Props) {
   const t = useTranslations('tabs')
 
   return (
@@ -36,10 +52,15 @@ export default function AuthTab({ auth, onChange }: Props) {
 
       {auth.type === 'bearer' && (
         <Field label={t('token')}>
-          <TokenInput
+          <VarAwareInput
             value={auth.token ?? ''}
             onChange={v => onChange({ ...auth, token: v })}
             placeholder="{{token}}"
+            localScope={localScope} environmentVariables={environmentVariables}
+            collectionVariables={collectionVariables} globalVariables={globalVariables}
+            hasCollection={hasCollection} hasEnvironment={hasEnvironment}
+            collectionName={collectionName} environmentName={environmentName}
+            onSaveVar={onSaveVar} onNavigateToVariables={onNavigateToVariables}
           />
         </Field>
       )}
@@ -47,18 +68,27 @@ export default function AuthTab({ auth, onChange }: Props) {
       {auth.type === 'basic' && (
         <div className="flex flex-col gap-2">
           <Field label={t('username')}>
-            <TokenInput
+            <VarAwareInput
               value={auth.username ?? ''}
               onChange={v => onChange({ ...auth, username: v })}
               placeholder="{{username}}"
+              localScope={localScope} environmentVariables={environmentVariables}
+              collectionVariables={collectionVariables} globalVariables={globalVariables}
+              hasCollection={hasCollection} hasEnvironment={hasEnvironment}
+              collectionName={collectionName} environmentName={environmentName}
+              onSaveVar={onSaveVar} onNavigateToVariables={onNavigateToVariables}
             />
           </Field>
           <Field label={t('password')}>
-            <TokenInput
+            <VarAwareInput
               value={auth.password ?? ''}
               onChange={v => onChange({ ...auth, password: v })}
               placeholder="{{password}}"
-              type="password"
+              localScope={localScope} environmentVariables={environmentVariables}
+              collectionVariables={collectionVariables} globalVariables={globalVariables}
+              hasCollection={hasCollection} hasEnvironment={hasEnvironment}
+              collectionName={collectionName} environmentName={environmentName}
+              onSaveVar={onSaveVar} onNavigateToVariables={onNavigateToVariables}
             />
           </Field>
         </div>
@@ -67,17 +97,27 @@ export default function AuthTab({ auth, onChange }: Props) {
       {auth.type === 'api-key' && (
         <div className="flex flex-col gap-2">
           <Field label={t('apiKeyHeader')}>
-            <TokenInput
+            <VarAwareInput
               value={auth.apiKeyHeader ?? 'X-API-Key'}
               onChange={v => onChange({ ...auth, apiKeyHeader: v })}
               placeholder="X-API-Key"
+              localScope={localScope} environmentVariables={environmentVariables}
+              collectionVariables={collectionVariables} globalVariables={globalVariables}
+              hasCollection={hasCollection} hasEnvironment={hasEnvironment}
+              collectionName={collectionName} environmentName={environmentName}
+              onSaveVar={onSaveVar} onNavigateToVariables={onNavigateToVariables}
             />
           </Field>
           <Field label={t('apiKey')}>
-            <TokenInput
+            <VarAwareInput
               value={auth.apiKey ?? ''}
               onChange={v => onChange({ ...auth, apiKey: v })}
               placeholder="{{apiKey}}"
+              localScope={localScope} environmentVariables={environmentVariables}
+              collectionVariables={collectionVariables} globalVariables={globalVariables}
+              hasCollection={hasCollection} hasEnvironment={hasEnvironment}
+              collectionName={collectionName} environmentName={environmentName}
+              onSaveVar={onSaveVar} onNavigateToVariables={onNavigateToVariables}
             />
           </Field>
         </div>
@@ -92,27 +132,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="text-xs font-medium text-th-fg-muted">{label}</label>
       {children}
     </div>
-  )
-}
-
-function TokenInput({
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  type?: string
-}) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full rounded border border-th-border bg-th-input px-2 py-1.5 font-mono text-sm text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:ring-1 focus:ring-th-accent"
-    />
   )
 }

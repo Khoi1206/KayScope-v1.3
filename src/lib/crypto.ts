@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import logger from '@/lib/logger'
 
 const ALGO = 'aes-256-gcm' as const
 const ENC_PREFIX = 'enc:'
@@ -44,13 +45,14 @@ export function decryptValue(stored: string): string {
   const [ivHex, ciphertextHex, tagHex] = parts
   try {
     const key = getKey()
-    const iv = Buffer.from(ivHex, 'hex')
-    const ciphertext = Buffer.from(ciphertextHex, 'hex')
-    const tag = Buffer.from(tagHex, 'hex')
+    const iv = Buffer.from(ivHex!, 'hex')
+    const ciphertext = Buffer.from(ciphertextHex!, 'hex')
+    const tag = Buffer.from(tagHex!, 'hex')
     const decipher = createDecipheriv(ALGO, key, iv)
     decipher.setAuthTag(tag)
     return decipher.update(ciphertext).toString('utf8') + decipher.final('utf8')
-  } catch {
+  } catch (err) {
+    logger.error({ err, stored: stored.slice(0, 20) + '…' }, 'decryptValue failed')
     return ''
   }
 }

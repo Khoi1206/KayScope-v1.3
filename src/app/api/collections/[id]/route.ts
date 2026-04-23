@@ -9,8 +9,24 @@ import {
 import { updateCollectionSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
+import { encryptValue, isEncrypted, maskValue } from '@/lib/crypto'
+import type { Variable } from '@/db/schema'
 
 type Params = { params: { id: string } }
+
+function maskVariables(variables: Variable[]): Variable[] {
+  return variables.map(v => v.secret ? { ...v, value: maskValue() } : v)
+}
+
+function encryptVariables(incoming: Variable[], existing: Variable[]): Variable[] {
+  return incoming.map(v => {
+    if (!v.secret) return v
+    const existingVar = existing.find(e => e.key === v.key)
+    if (existingVar?.secret && v.value === maskValue()) return { ...v, value: existingVar.value }
+    if (isEncrypted(v.value)) return v
+    return { ...v, value: encryptValue(v.value) }
+  })
+}
 
 export function GET(_req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
@@ -19,7 +35,7 @@ export function GET(_req: NextRequest, { params }: Params) {
     if (!workspace) throw new NotFoundError('Workspace not found')
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
     if (!col) throw new NotFoundError('Collection not found')
-    return NextResponse.json(col)
+    return NextResponse.json({ ...col, variables: maskVariables(col.variables) })
   })
 }
 
@@ -33,8 +49,17 @@ export function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json()
     const parsed = updateCollectionSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
-    const updated = await updateCollection(params.id, parsed.data)
-    return NextResponse.json(updated)
+
+    const updateData: Parameters<typeof updateCollection>[1] = {}
+    if (parsed.data.name !== undefined) updateData.name = parsed.data.name
+    if (parsed.data.description !== undefined) updateData.description = parsed.data.description
+    if (parsed.data.variables) {
+      updateData.variables = encryptVariables(parsed.data.variables, col.variables)
+    }
+
+    const updated = await updateCollection(params.id, updateData)
+    if (!updated) throw new NotFoundError('Collection not found')
+    return NextResponse.json({ ...updated, variables: maskVariables(updated.variables) })
   })
 }
 

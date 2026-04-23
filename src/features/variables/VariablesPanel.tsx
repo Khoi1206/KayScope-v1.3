@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import type { RequestAuth } from '@/store/request.store'
 
 interface VarEntry {
   name: string
@@ -18,9 +19,10 @@ interface Props {
   url: string
   headers: Array<{ key: string; value: string; enabled: boolean }>
   params: Array<{ key: string; value: string; enabled: boolean }>
+  auth?: RequestAuth
 }
 
-const VAR_RE = /\{\{([^}]+)\}\}/g
+const VAR_RE = /\{\{(\$?[a-zA-Z_][a-zA-Z0-9_.\-]*)\}\}/g
 
 function extractVarNames(text: string): string[] {
   const names: string[] = []
@@ -32,14 +34,22 @@ function extractVarNames(text: string): string[] {
   return names
 }
 
-export default function VariablesPanel({ localScope, environmentVariables, collectionVariables = {}, globalVariables = {}, url, headers, params }: Props) {
+export default function VariablesPanel({ localScope, environmentVariables, collectionVariables = {}, globalVariables = {}, url, headers, params, auth }: Props) {
   const t = useTranslations('variables')
 
   // Collect all var names referenced in the current request
+  const authTexts: string[] = auth && auth.type !== 'none' ? (() => {
+    if (auth.type === 'bearer') return [auth.token ?? '']
+    if (auth.type === 'basic') return [auth.username ?? '', auth.password ?? '']
+    if (auth.type === 'api-key') return [auth.apiKeyHeader ?? '', auth.apiKey ?? '']
+    return []
+  })() : []
+
   const texts = [
     url,
     ...headers.filter(h => h.enabled).flatMap(h => [h.key, h.value]),
     ...params.filter(p => p.enabled).flatMap(p => [p.key, p.value]),
+    ...authTexts,
   ]
   const referencedNames = [...new Set(texts.flatMap(extractVarNames))]
 

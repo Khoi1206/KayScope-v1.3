@@ -98,6 +98,7 @@ interface RequestStore {
   updateSnapshot: (id: string, patch: Partial<TabSnapshot>) => void
   markDirty: (id: string) => void
   markClean: (id: string) => void
+  renameTab: (id: string, title: string) => void
 
   // Persistence
   saveRequest: (tabId: string) => Promise<void>
@@ -186,6 +187,16 @@ export const useRequestStore = create<RequestStore>()(
         }))
       },
 
+      renameTab: (id, title) => {
+        set(s => ({
+          tabs: s.tabs.map(t =>
+            t.id === id
+              ? { ...t, title, isDirty: t.isDirty || !!t.requestId }
+              : t
+          ),
+        }))
+      },
+
       saveRequest: async (tabId) => {
         const tab = get().tabs.find(t => t.id === tabId)
         const snap = get().snapshots[tabId]
@@ -194,6 +205,7 @@ export const useRequestStore = create<RequestStore>()(
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            name: tab.title,
             method: snap.method,
             url: snap.url,
             params: snap.params,

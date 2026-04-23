@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
 import { useWorkspaceStore, type WorkspaceVariable } from '@/store/workspace.store'
 
 interface Props {
@@ -18,16 +18,29 @@ export default function GlobalVarsEditor({ onClose }: Props) {
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const hasEdited = useRef(false)
+
+  // Sync local state when workspace loads (handles the case where workspace
+  // was null at mount time and loads asynchronously)
+  useEffect(() => {
+    if (!hasEdited.current && workspace?.globalVariables) {
+      setVariables(workspace.globalVariables)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.globalVariables])
 
   function addVariable() {
+    hasEdited.current = true
     setVariables(v => [...v, { key: '', value: '', enabled: true, secret: false }])
   }
 
   function removeVariable(i: number) {
+    hasEdited.current = true
     setVariables(v => v.filter((_, idx) => idx !== i))
   }
 
   function updateVariable(i: number, patch: Partial<WorkspaceVariable>) {
+    hasEdited.current = true
     setVariables(v => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
 
@@ -68,13 +81,13 @@ export default function GlobalVarsEditor({ onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-[20px_1fr_1fr_28px] gap-2 border-b border-th-border px-5 py-2 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">
-            <span /><span>Key</span><span>Value</span><span />
+          <div className="grid grid-cols-[20px_1fr_1fr_28px_28px] gap-2 border-b border-th-border px-5 py-2 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">
+            <span /><span>Key</span><span>Value</span><span /><span />
           </div>
 
           <div className="flex flex-col">
             {variables.map((v, i) => (
-              <div key={i} className="group grid grid-cols-[20px_1fr_1fr_28px] items-center gap-2 border-b border-th-border/40 px-5 py-1.5 transition-colors hover:bg-th-surface-hover/40">
+              <div key={i} className="group grid grid-cols-[20px_1fr_1fr_28px_28px] items-center gap-2 border-b border-th-border/40 px-5 py-1.5 transition-colors hover:bg-th-surface-hover/40">
                 <input
                   type="checkbox"
                   checked={v.enabled}
@@ -89,12 +102,19 @@ export default function GlobalVarsEditor({ onClose }: Props) {
                   className="rounded-md border border-th-border bg-th-input px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
                 />
                 <input
-                  type="text"
+                  type={v.secret ? 'password' : 'text'}
                   value={v.value}
                   placeholder="Value"
                   onChange={e => updateVariable(i, { value: e.target.value })}
                   className="rounded-md border border-th-border bg-th-input px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
                 />
+                <button
+                  onClick={() => updateVariable(i, { secret: !v.secret })}
+                  title={tc('toggleSecret')}
+                  className={`flex items-center justify-center rounded-md p-1 transition-colors ${v.secret ? 'text-th-accent' : 'text-th-fg-subtle opacity-0 group-hover:opacity-100'}`}
+                >
+                  {v.secret ? <EyeOff size={12} /> : <Eye size={12} />}
+                </button>
                 <button
                   onClick={() => removeVariable(i)}
                   title={tc('removeRow')}

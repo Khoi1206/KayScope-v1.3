@@ -1,9 +1,19 @@
 export interface ParsedCurl {
   method: string
   url: string
+  params: Array<{ key: string; value: string; enabled: boolean }>
   headers: Array<{ key: string; value: string; enabled: boolean }>
-  body: { type: 'none' | 'json' | 'raw'; content: string }
-  auth: { type: 'none' | 'basic'; username?: string; password?: string }
+  body: {
+    type: 'none' | 'json' | 'raw' | 'form-data' | 'x-www-form-urlencoded'
+    content: string
+    formData?: Array<{ key: string; value: string; enabled: boolean }>
+  }
+  auth: {
+    type: 'none' | 'bearer' | 'basic'
+    token?: string
+    username?: string
+    password?: string
+  }
 }
 
 export function parseCurl(input: string): ParsedCurl {
@@ -13,18 +23,21 @@ export function parseCurl(input: string): ParsedCurl {
     .replace(/\s+/g, ' ')
     .trim()
 
-  if (!raw.startsWith('curl')) throw new Error('Not a valid cURL command')
+  if (!raw.toLowerCase().startsWith('curl')) throw new Error('Not a valid cURL command')
 
-  // Tokenize respecting single/double quotes
   const tokens = tokenize(raw)
   let i = 1 // skip 'curl'
 
   let method = ''
-  let url = ''
+  let rawUrl = ''
   const headers: Array<{ key: string; value: string; enabled: boolean }> = []
+  const formData: Array<{ key: string; value: string; enabled: boolean }> = []
   let bodyContent = ''
   let username = ''
   let password = ''
+  let bearerToken = ''
+  let isFormData = false
+  let isUrlEncoded = false
 
   while (i < tokens.length) {
     const tok = tokens[i]!
@@ -35,14 +48,38 @@ export function parseCurl(input: string): ParsedCurl {
       const header = tokens[++i] ?? ''
       const colonIdx = header.indexOf(':')
       if (colonIdx > 0) {
-        headers.push({
-          key: header.slice(0, colonIdx).trim(),
-          value: header.slice(colonIdx + 1).trim(),
-          enabled: true,
-        })
+        const key = header.slice(0, colonIdx).trim()
+        const value = header.slice(colonIdx + 1).trim()
+        // Detect Authorization header
+        if (key.toLowerCase() === 'authorization') {
+          if (value.toLowerCase().startsWith('bearer ')) {
+            bearerToken = value.slice(7).trim()
+          } else {
+            headers.push({ key, value, enabled: true })
+          }
+        } else {
+          headers.push({ key, value, enabled: true })
+        }
       }
     } else if (tok === '-d' || tok === '--data' || tok === '--data-raw' || tok === '--data-binary') {
       bodyContent = tokens[++i] ?? ''
+    } else if (tok === '--data-urlencode') {
+      const raw = tokens[++i] ?? ''
+      const eq = raw.indexOf('=')
+      if (eq >= 0) {
+        const k = raw.slice(0, eq)
+        const v = decodeURIComponent(raw.slice(eq + 1))
+        if (bodyContent) bodyContent += '&'
+        bodyContent += `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+        isUrlEncoded = true
+      }
+    } else if (tok === '-F' || tok === '--form') {
+      const pair = tokens[++i] ?? ''
+      const eq = pair.indexOf('=')
+      if (eq >= 0) {
+        formData.push({ key: pair.slice(0, eq), value: pair.slice(eq + 1), enabled: true })
+      }
+      isFormData = true
     } else if (tok === '-u' || tok === '--user') {
       const creds = tokens[++i] ?? ''
       const colon = creds.indexOf(':')
@@ -52,47 +89,100 @@ export function parseCurl(input: string): ParsedCurl {
       } else {
         username = creds
       }
-    } else if (!tok.startsWith('-') && !url) {
-      url = tok
+    } else if (tok === '--bearer') {
+      bearerToken = tokens[++i] ?? ''
+    } else if (!tok.startsWith('-') && !rawUrl) {
+      rawUrl = tok
     }
 
     i++
   }
 
-  // Infer method from body presence
-  if (!method) method = bodyContent ? 'POST' : 'GET'
-
-  // Infer content type from headers
-  const contentTypeHeader = headers.find(h => h.key.toLowerCase() === 'content-type')
-  const contentType = contentTypeHeader?.value ?? ''
-  let bodyType: 'none' | 'json' | 'raw' = 'none'
-  if (bodyContent) {
-    bodyType = contentType.includes('json') ? 'json' : 'raw'
+  // Parse URL: strip query string → params array
+  let url = rawUrl
+  const params: Array<{ key: string; value: string; enabled: boolean }> = []
+  try {
+    const parsed = new URL(rawUrl)
+    parsed.searchParams.forEach((value, key) => {
+      params.push({ key, value, enabled: true })
+    })
+    // Reconstruct URL without query string
+    parsed.search = ''
+    url = parsed.toString()
+  } catch {
+    // rawUrl might be a template with {{vars}}, not parseable — keep as-is
+    const qIdx = rawUrl.indexOf('?')
+    if (qIdx >= 0) {
+      url = rawUrl.slice(0, qIdx)
+      rawUrl.slice(qIdx + 1).split('&').forEach(pair => {
+        const eq = pair.indexOf('=')
+        if (eq >= 0) {
+          params.push({ key: decodeURIComponent(pair.slice(0, eq)), value: decodeURIComponent(pair.slice(eq + 1)), enabled: true })
+        } else if (pair) {
+          params.push({ key: decodeURIComponent(pair), value: '', enabled: true })
+        }
+      })
+    }
   }
+
+  // Infer method
+  if (!method) {
+    if (isFormData || bodyContent) method = 'POST'
+    else method = 'GET'
+  }
+
+  // Determine body type
+  const contentTypeHeader = headers.find(h => h.key.toLowerCase() === 'content-type')
+  const contentType = contentTypeHeader?.value?.toLowerCase() ?? ''
+
+  let body: ParsedCurl['body']
+  if (isFormData) {
+    body = { type: 'form-data', content: '', formData }
+  } else if (isUrlEncoded || contentType.includes('x-www-form-urlencoded')) {
+    body = { type: 'x-www-form-urlencoded', content: bodyContent }
+  } else if (bodyContent) {
+    const isJson = contentType.includes('json') || isJsonString(bodyContent)
+    body = { type: isJson ? 'json' : 'raw', content: bodyContent }
+  } else {
+    body = { type: 'none', content: '' }
+  }
+
+  // Determine auth
+  const auth: ParsedCurl['auth'] = bearerToken
+    ? { type: 'bearer', token: bearerToken }
+    : username
+    ? { type: 'basic', username, password }
+    : { type: 'none' }
+
+  // Remove content-type header if we already captured the body type
+  const finalHeaders = body.type !== 'none'
+    ? headers.filter(h => h.key.toLowerCase() !== 'content-type')
+    : headers
 
   return {
     method: method.toUpperCase(),
     url,
-    headers: headers.filter(h => h.key.toLowerCase() !== 'content-type' || bodyType !== 'none'
-      ? true : h.key.toLowerCase() !== 'content-type'),
-    body: { type: bodyType, content: bodyContent },
-    auth: username
-      ? { type: 'basic', username, password }
-      : { type: 'none' },
+    params,
+    headers: finalHeaders,
+    body,
+    auth,
   }
+}
+
+function isJsonString(s: string): boolean {
+  const t = s.trim()
+  return (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))
 }
 
 function tokenize(input: string): string[] {
   const tokens: string[] = []
   let i = 0
   while (i < input.length) {
-    // Skip whitespace
     while (i < input.length && /\s/.test(input[i]!)) i++
     if (i >= input.length) break
 
     const ch = input[i]!
     if (ch === "'" || ch === '"') {
-      // Quoted string
       const quote = ch
       i++
       let s = ''
@@ -108,7 +198,6 @@ function tokenize(input: string): string[] {
       i++ // closing quote
       tokens.push(s)
     } else {
-      // Unquoted token (stop at whitespace)
       let s = ''
       while (i < input.length && !/\s/.test(input[i]!)) {
         s += input[i]

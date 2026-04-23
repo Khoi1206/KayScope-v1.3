@@ -5,19 +5,32 @@ import { cn } from '@/components/ui/cn'
 import KVEditor, { type KVRow } from '@/components/KVEditor'
 import MonacoEditor from '@/components/MonacoEditor'
 import type { RequestBody } from '@/store/request.store'
+import type { SaveScope } from '@/components/VarHoverPopover'
 
 interface Props {
   body: RequestBody
   onChange: (body: RequestBody) => void
   localScope?: Record<string, string>
   environmentVariables?: Record<string, string>
-  onSetLocalVar?: (name: string, value: string) => void
+  collectionVariables?: Record<string, string>
+  globalVariables?: Record<string, string>
+  hasCollection?: boolean
+  hasEnvironment?: boolean
+  collectionName?: string
+  environmentName?: string
+  onSaveVar?: (scope: SaveScope, name: string, value: string) => Promise<void>
+  onNavigateToVariables?: () => void
 }
 
 const BODY_TYPES = ['none', 'json', 'raw', 'form-data', 'x-www-form-urlencoded'] as const
 const RAW_TYPES = ['text', 'json', 'javascript', 'html', 'xml'] as const
 
-export default function BodyTab({ body, onChange, localScope, environmentVariables, onSetLocalVar }: Props) {
+export default function BodyTab({
+  body, onChange,
+  localScope, environmentVariables, collectionVariables, globalVariables,
+  hasCollection, hasEnvironment, collectionName, environmentName,
+  onSaveVar, onNavigateToVariables,
+}: Props) {
   const t = useTranslations('tabs')
 
   return (
@@ -76,7 +89,14 @@ export default function BodyTab({ body, onChange, localScope, environmentVariabl
             valuePlaceholder="Value"
             localScope={localScope}
             environmentVariables={environmentVariables}
-            onSetLocalVar={onSetLocalVar}
+            collectionVariables={collectionVariables}
+            globalVariables={globalVariables}
+            hasCollection={hasCollection}
+            hasEnvironment={hasEnvironment}
+            collectionName={collectionName}
+            environmentName={environmentName}
+            onSaveVar={onSaveVar}
+            onNavigateToVariables={onNavigateToVariables}
           />
         )}
       </div>

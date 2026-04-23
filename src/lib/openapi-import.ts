@@ -76,7 +76,7 @@ function parseOAS3(doc: Record<string, any>): ImportResult {
     }
   }
 
-  return { collection: { name: title, folders, requests } }
+  return { collection: { name: title, variables: [], folders, requests } }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,7 +138,7 @@ function parseSwagger2(doc: Record<string, any>): ImportResult {
     }
   }
 
-  return { collection: { name: title, folders, requests } }
+  return { collection: { name: title, variables: [], folders, requests } }
 }
 
 export function parseOpenApiDocument(content: string): ImportResult {

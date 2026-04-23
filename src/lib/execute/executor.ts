@@ -10,8 +10,8 @@ import { checkRateLimit } from './rate-limit'
 import { getRedisClient } from '@/lib/redis'
 import { executeScript, type ScriptContext } from '@/lib/scripting/sandbox'
 import { findWorkspaceById } from '@/db/queries/workspaces'
-import { findEnvironmentById } from '@/db/queries/environments'
-import { findCollectionById } from '@/db/queries/collections'
+import { findEnvironmentByIdForWorkspace } from '@/db/queries/environments'
+import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { decryptValue, encryptValue, isEncrypted } from '@/lib/crypto'
 import type { Variable } from '@/db/schema'
 import logger from '@/lib/logger'
@@ -48,8 +48,8 @@ export async function execute(
   // 1. Load server-side scopes from DB
   const [workspace, environment, collection] = await Promise.all([
     findWorkspaceById(input.workspaceId),
-    input.environmentId ? findEnvironmentById(input.environmentId) : null,
-    input.collectionId ? findCollectionById(input.collectionId) : null,
+    input.environmentId ? findEnvironmentByIdForWorkspace(input.environmentId, input.workspaceId) : null,
+    input.collectionId ? findCollectionByIdForWorkspace(input.collectionId, input.workspaceId) : null,
   ])
 
   const globalVars = decryptAllVariables(workspace?.globalVariables ?? [])
@@ -86,15 +86,32 @@ export async function execute(
 
   // 5. Run pre-request script
   let preScriptError: string | undefined
+  let effectiveHeaders = input.headers ?? []
+  let effectiveBody = input.body
   if (input.preRequestScript?.trim()) {
     const preResult = await executeScript(input.preRequestScript, scriptCtx)
     preScriptError = preResult.error
     if (preScriptError) {
       return { preScriptError, logs: preResult.logs, tests: preResult.tests }
     }
-    // Apply pre-script mutations to scopes
+    // Apply pre-script scope mutations
     applyMutationsToContext(scriptCtx, preResult.mutations)
     mergeScriptMutations(scopes, preResult.mutations)
+    // Apply pre-script request mutations (pm.request.setHeader / pm.request.setBody)
+    const rm = preResult.mutations.requestMutations
+    if (rm) {
+      for (const [key, value] of Object.entries(rm.headers)) {
+        const idx = effectiveHeaders.findIndex(h => h.key.toLowerCase() === key.toLowerCase())
+        if (idx >= 0) {
+          effectiveHeaders = effectiveHeaders.map((h, i) => i === idx ? { ...h, value } : h)
+        } else {
+          effectiveHeaders = [...effectiveHeaders, { key, value, enabled: true }]
+        }
+      }
+      if (rm.body !== undefined && effectiveBody) {
+        effectiveBody = { ...effectiveBody, content: rm.body }
+      }
+    }
   }
 
   // 6. Build URL with query params
@@ -121,12 +138,12 @@ export async function execute(
   }
 
   // 8. Build headers (user headers + auth headers, merged)
-  const userHeaders = buildHeaders(input.headers ?? [], scopes, dynamicVars)
+  const userHeaders = buildHeaders(effectiveHeaders, scopes, dynamicVars)
   const authHeaders = resolveAuthHeaders(input.auth, scopes, dynamicVars)
   const mergedHeaders: Record<string, string> = { ...authHeaders, ...userHeaders }
 
   // 9. Build body
-  const { body, contentType } = buildRequestBody(input.body, scopes, dynamicVars)
+  const { body, contentType } = buildRequestBody(effectiveBody, scopes, dynamicVars)
   if (contentType && !mergedHeaders['content-type'] && !mergedHeaders['Content-Type']) {
     mergedHeaders['Content-Type'] = contentType
   }
@@ -290,8 +307,8 @@ async function persistMutations(
 
   // Persist environment mutations
   if (input.environmentId && Object.keys(mutations.environment).length > 0) {
-    const { findEnvironmentById } = await import('@/db/queries/environments')
-    const env = await findEnvironmentById(input.environmentId)
+    const { findEnvironmentByIdForWorkspace } = await import('@/db/queries/environments')
+    const env = await findEnvironmentByIdForWorkspace(input.environmentId, input.workspaceId)
     if (env) {
       await updateEnvironment(input.environmentId, {
         variables: applyMutationsToVars(env.variables, mutations.environment),
@@ -301,7 +318,8 @@ async function persistMutations(
 
   // Persist collection variable mutations
   if (input.collectionId && Object.keys(mutations.collection).length > 0) {
-    const col = await findCollectionById(input.collectionId)
+    const { findCollectionByIdForWorkspace } = await import('@/db/queries/collections')
+    const col = await findCollectionByIdForWorkspace(input.collectionId, input.workspaceId)
     if (col) {
       await updateCollection(input.collectionId, {
         variables: applyMutationsToVars(col.variables, mutations.collection),

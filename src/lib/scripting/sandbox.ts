@@ -21,11 +21,17 @@ export interface ScriptContext {
   iteration?: number
 }
 
+export interface RequestMutations {
+  headers: Record<string, string>
+  body?: string
+}
+
 export interface ScriptMutations {
   local: Record<string, string>
   environment: Record<string, string>
   collection: Record<string, string>
   global: Record<string, string>
+  requestMutations?: RequestMutations
 }
 
 export interface TestResult {
@@ -36,6 +42,7 @@ export interface TestResult {
 
 export interface ScriptResult {
   mutations: ScriptMutations
+  requestMutations?: RequestMutations
   tests: TestResult[]
   logs: string[]
   error?: string
@@ -53,7 +60,7 @@ const pool = new Piscina({
 })
 
 function emptyMutations(): ScriptMutations {
-  return { local: {}, environment: {}, collection: {}, global: {} }
+  return { local: {}, environment: {}, collection: {}, global: {}, requestMutations: { headers: {} } }
 }
 
 // ── executeScript ──────────────────────────────────────────────────────────

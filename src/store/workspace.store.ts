@@ -40,7 +40,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   updateGlobalVariables: async (variables) => {
     const ws = get().workspace
-    if (!ws) return
+    if (!ws) throw new Error('Workspace not loaded')
     const res = await fetch('/api/workspaces', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

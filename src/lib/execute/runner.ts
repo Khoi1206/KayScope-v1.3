@@ -218,6 +218,8 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
   }
 
   // Pre-request script
+  let effectiveHeaders = req.headers ?? []
+  let effectiveBody = req.body
   if (req.preRequestScript?.trim()) {
     const pre = await executeScript(req.preRequestScript, scriptCtx)
     if (pre.error) {
@@ -227,6 +229,21 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
       }
     }
     applyMutations(scriptCtx, scopes, pre.mutations)
+    // Apply pm.request.setHeader / pm.request.setBody mutations
+    const rm = pre.mutations.requestMutations
+    if (rm) {
+      for (const [key, value] of Object.entries(rm.headers)) {
+        const idx = effectiveHeaders.findIndex(h => h.key.toLowerCase() === key.toLowerCase())
+        if (idx >= 0) {
+          effectiveHeaders = effectiveHeaders.map((h, i) => i === idx ? { ...h, value } : h)
+        } else {
+          effectiveHeaders = [...effectiveHeaders, { key, value, enabled: true }]
+        }
+      }
+      if (rm.body !== undefined && effectiveBody) {
+        effectiveBody = { ...effectiveBody, content: rm.body }
+      }
+    }
   }
 
   // Build URL
@@ -259,9 +276,9 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
 
   // Build headers + body
   const authHeaders = resolveAuthHeaders(req.auth as never, scopes, dynamicVars)
-  const userHeaders = buildHeaders(req.headers ?? [], scopes, dynamicVars)
+  const userHeaders = buildHeaders(effectiveHeaders, scopes, dynamicVars)
   const mergedHeaders = { ...authHeaders, ...userHeaders }
-  const { body, contentType } = buildRequestBody(req.body as never, scopes, dynamicVars)
+  const { body, contentType } = buildRequestBody(effectiveBody as never, scopes, dynamicVars)
   if (contentType && !mergedHeaders['content-type'] && !mergedHeaders['Content-Type']) {
     mergedHeaders['Content-Type'] = contentType
   }

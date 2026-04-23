@@ -123,7 +123,7 @@ export default function CollectionTree() {
         return (
           <div key={col.id}>
             {/* Collection row */}
-            <div className="group flex w-full items-center rounded px-2 py-1 text-sm font-medium hover:bg-th-surface-hover">
+            <div className="group flex w-full items-center rounded px-2 py-0.5 text-sm font-medium hover:bg-th-surface-hover">
               <button
                 onClick={() => handleExpandCollection(col.id)}
                 className="flex flex-1 items-center gap-1.5 overflow-hidden text-left"

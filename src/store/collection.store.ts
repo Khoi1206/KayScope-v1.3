@@ -72,6 +72,8 @@ interface CollectionStore {
 
   createRequest: (collectionId: string, name: string, folderId?: string) => Promise<RequestItem>
   deleteRequest: (id: string, collectionId: string) => Promise<void>
+  renameRequest: (id: string, collectionId: string, name: string) => void
+  patchRequest: (id: string, collectionId: string, patch: Partial<Pick<RequestItem, 'name' | 'method' | 'url'>>) => void
 }
 
 export const useCollectionStore = create<CollectionStore>((set, get) => ({
@@ -216,6 +218,28 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       requests: {
         ...s.requests,
         [collectionId]: (s.requests[collectionId] ?? []).filter(r => r.id !== id),
+      },
+    }))
+  },
+
+  renameRequest: (id, collectionId, name) => {
+    set(s => ({
+      requests: {
+        ...s.requests,
+        [collectionId]: (s.requests[collectionId] ?? []).map(r =>
+          r.id === id ? { ...r, name } : r
+        ),
+      },
+    }))
+  },
+
+  patchRequest: (id, collectionId, patch) => {
+    set(s => ({
+      requests: {
+        ...s.requests,
+        [collectionId]: (s.requests[collectionId] ?? []).map(r =>
+          r.id === id ? { ...r, ...patch } : r
+        ),
       },
     }))
   },

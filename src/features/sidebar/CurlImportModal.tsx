@@ -31,6 +31,7 @@ export default function CurlImportModal({ onClose }: Props) {
         {
           method: parsed.method,
           url: parsed.url,
+          params: parsed.params,
           headers: parsed.headers,
           body: parsed.body,
           auth: parsed.auth,

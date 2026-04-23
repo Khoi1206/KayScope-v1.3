@@ -167,7 +167,7 @@ export default function EnvironmentEditor({ env, onClose }: Props) {
                     {/* Secret toggle */}
                     <div className="flex items-center justify-center gap-1">
                       <button
-                        onClick={() => updateVariable(i, v.secret ? { secret: false, value: '' } : { secret: true })}
+                        onClick={() => updateVariable(i, { secret: !v.secret })}
                         title={v.secret ? 'Remove secret' : 'Mark as secret'}
                         className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
                           v.secret

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore } from '@/store/environment.store'
+import { useWorkspaceStore } from '@/store/workspace.store'
 import Sidebar from '@/features/sidebar/Sidebar'
 import RequestEditorPane from '@/features/request-editor/RequestEditorPane'
 import Navbar from '@/features/navbar/Navbar'
@@ -15,6 +16,7 @@ interface Props {
 export default function WorkspaceShell({ userId: _userId, userName }: Props) {
   const fetchCollections = useCollectionStore(s => s.fetchCollections)
   const fetchEnvironments = useEnvironmentStore(s => s.fetchEnvironments)
+  const fetchWorkspace = useWorkspaceStore(s => s.fetchWorkspace)
 
   useEffect(() => {
     // Apply saved theme on mount
@@ -26,7 +28,8 @@ export default function WorkspaceShell({ userId: _userId, userName }: Props) {
   useEffect(() => {
     void fetchCollections()
     void fetchEnvironments()
-  }, [fetchCollections, fetchEnvironments])
+    void fetchWorkspace()
+  }, [fetchCollections, fetchEnvironments, fetchWorkspace])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-th-bg text-th-fg">

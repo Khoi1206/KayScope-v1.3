@@ -1,15 +1,33 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { cn } from './ui/cn'
+import VarHoverPopover, { type SaveScope, type VarScope } from './VarHoverPopover'
 
 export interface KVRow {
   key: string
   value: string
   enabled: boolean
   description?: string
+}
+
+export interface VarAwareInputProps {
+  value: string
+  placeholder?: string
+  disabled?: boolean
+  onChange: (v: string) => void
+  localScope?: Record<string, string>
+  environmentVariables?: Record<string, string>
+  collectionVariables?: Record<string, string>
+  globalVariables?: Record<string, string>
+  hasCollection?: boolean
+  hasEnvironment?: boolean
+  collectionName?: string
+  environmentName?: string
+  onSaveVar?: (scope: SaveScope, name: string, value: string) => Promise<void>
+  onNavigateToVariables?: () => void
 }
 
 interface Props {
@@ -21,7 +39,14 @@ interface Props {
   disabled?: boolean
   localScope?: Record<string, string>
   environmentVariables?: Record<string, string>
-  onSetLocalVar?: (name: string, value: string) => void
+  collectionVariables?: Record<string, string>
+  globalVariables?: Record<string, string>
+  hasCollection?: boolean
+  hasEnvironment?: boolean
+  collectionName?: string
+  environmentName?: string
+  onSaveVar?: (scope: SaveScope, name: string, value: string) => Promise<void>
+  onNavigateToVariables?: () => void
 }
 
 const VAR_RE = /\{\{(\$?[a-zA-Z_][a-zA-Z0-9_.\-]*)\}\}/g
@@ -34,6 +59,20 @@ function interpolatePreview(s: string, map: Record<string, string | undefined>):
   return s.replace(new RegExp(VAR_RE.source, 'g'), (_, name) => map[name] ?? `{{${name}}}`)
 }
 
+function detectScope(
+  name: string,
+  local: Record<string, string> = {},
+  env: Record<string, string> = {},
+  col: Record<string, string> = {},
+  global: Record<string, string> = {},
+): VarScope {
+  if (name in local) return 'local'
+  if (name in env) return 'environment'
+  if (name in col) return 'collection'
+  if (name in global) return 'global'
+  return null
+}
+
 export default function KVEditor({
   rows,
   onChange,
@@ -43,7 +82,14 @@ export default function KVEditor({
   disabled = false,
   localScope,
   environmentVariables,
-  onSetLocalVar,
+  collectionVariables,
+  globalVariables,
+  hasCollection,
+  hasEnvironment,
+  collectionName,
+  environmentName,
+  onSaveVar,
+  onNavigateToVariables,
 }: Props) {
   const t = useTranslations('kvEditor')
   const scopeEnabled = localScope !== undefined || environmentVariables !== undefined
@@ -58,11 +104,24 @@ export default function KVEditor({
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
 
+  const inputProps = scopeEnabled ? {
+    localScope,
+    environmentVariables,
+    collectionVariables,
+    globalVariables,
+    hasCollection,
+    hasEnvironment,
+    collectionName,
+    environmentName,
+    onSaveVar,
+    onNavigateToVariables,
+  } : {}
+
   return (
     <div className="flex flex-col">
       {/* Header */}
       <div className={cn(
-        'grid gap-2 border-b border-th-border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle',
+        'grid gap-2 border-b border-th-border px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-th-fg-subtle',
         showDescription ? 'grid-cols-[20px_1fr_1fr_1fr_28px]' : 'grid-cols-[20px_1fr_1fr_28px]'
       )}>
         <span /><span>{t('key')}</span><span>{t('value')}</span>
@@ -72,7 +131,7 @@ export default function KVEditor({
 
       {rows.map((row, i) => (
         <div key={i} className={cn(
-          'group grid items-start gap-2 border-b border-th-border/50 px-2 py-1 transition-colors hover:bg-th-surface-hover/40',
+          'group grid items-start gap-2 border-b border-th-border/50 px-2 py-0.5 transition-colors hover:bg-th-surface-hover/40',
           showDescription ? 'grid-cols-[20px_1fr_1fr_1fr_28px]' : 'grid-cols-[20px_1fr_1fr_28px]'
         )}>
           <input
@@ -87,18 +146,14 @@ export default function KVEditor({
             placeholder={keyPlaceholder}
             disabled={disabled}
             onChange={v => updateRow(i, { key: v })}
-            localScope={scopeEnabled ? localScope : undefined}
-            environmentVariables={scopeEnabled ? environmentVariables : undefined}
-            onSetLocalVar={onSetLocalVar}
+            {...inputProps}
           />
           <VarAwareInput
             value={row.value}
             placeholder={valuePlaceholder}
             disabled={disabled}
             onChange={v => updateRow(i, { value: v })}
-            localScope={scopeEnabled ? localScope : undefined}
-            environmentVariables={scopeEnabled ? environmentVariables : undefined}
-            onSetLocalVar={onSetLocalVar}
+            {...inputProps}
           />
           {showDescription && (
             <input
@@ -136,42 +191,47 @@ export default function KVEditor({
 
 // ── VarAwareInput ──────────────────────────────────────────────────────────
 
-interface VarAwareInputProps {
-  value: string
-  placeholder?: string
-  disabled?: boolean
-  onChange: (v: string) => void
-  localScope?: Record<string, string>
-  environmentVariables?: Record<string, string>
-  onSetLocalVar?: (name: string, value: string) => void
-}
-
-function VarAwareInput({
+export function VarAwareInput({
   value,
   placeholder,
   disabled,
   onChange,
-  localScope,
-  environmentVariables,
-  onSetLocalVar,
+  localScope = {},
+  environmentVariables = {},
+  collectionVariables = {},
+  globalVariables = {},
+  hasCollection = false,
+  hasEnvironment = false,
+  collectionName,
+  environmentName,
+  onSaveVar,
+  onNavigateToVariables,
 }: VarAwareInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>()
+  const savingRef = useRef(false)
 
-  const scopeEnabled = localScope !== undefined || environmentVariables !== undefined
+  const scopeEnabled = Object.keys(localScope).length > 0
+    || Object.keys(environmentVariables).length > 0
+    || Object.keys(collectionVariables).length > 0
+    || Object.keys(globalVariables).length > 0
+    || onSaveVar !== undefined
+
   const varNames = extractVars(value)
   const hasVars = varNames.length > 0
 
-  // resolved map for all vars in this field
-  const resolvedMap: Record<string, string | undefined> = {}
-  for (const name of varNames) {
-    resolvedMap[name] = localScope?.[name] ?? environmentVariables?.[name]
+  // Merged resolution map (higher priority first — later overwrites lower)
+  const allVars: Record<string, string> = {
+    ...globalVariables, ...collectionVariables, ...environmentVariables, ...localScope,
   }
 
-  // preview: full interpolated string, only shown if something actually changed
-  const preview = scopeEnabled && hasVars ? interpolatePreview(value, resolvedMap) : null
+  const resolvedMap: Record<string, string | undefined> = {}
+  for (const name of varNames) {
+    resolvedMap[name] = allVars[name]
+  }
+
+  const preview = hasVars ? interpolatePreview(value, resolvedMap) : null
   const showPreview = preview !== null && preview !== value
 
   function openHover(name: string, rect: DOMRect) {
@@ -179,15 +239,13 @@ function VarAwareInput({
     setHovered({ name, rect })
   }
   function scheduleClose() {
-    closeTimer.current = setTimeout(() => setHovered(null), 180)
+    closeTimer.current = setTimeout(() => { if (!savingRef.current) setHovered(null) }, 400)
   }
-  function cancelClose() {
-    clearTimeout(closeTimer.current)
-  }
+  function cancelClose() { clearTimeout(closeTimer.current) }
 
   // Build overlay segments
   const segments: Array<{ type: 'text' | 'var'; content: string; name?: string }> = []
-  if (scopeEnabled && hasVars) {
+  if (hasVars) {
     let last = 0
     for (const m of [...value.matchAll(new RegExp(VAR_RE.source, 'g'))]) {
       if (m.index! > last) segments.push({ type: 'text', content: value.slice(last, m.index) })
@@ -197,14 +255,13 @@ function VarAwareInput({
     if (last < value.length) segments.push({ type: 'text', content: value.slice(last) })
   }
 
-  const showOverlay = scopeEnabled && segments.length > 0
+  const showOverlay = segments.length > 0
 
   return (
     <div className="w-full">
       {/* Input + overlay wrapper */}
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
           value={value}
           placeholder={placeholder}
@@ -254,91 +311,32 @@ function VarAwareInput({
         </div>
       )}
 
-      {/* Hover popover (fixed so it's never clipped by table) */}
-      {hovered && (
+      {/* Hover popover */}
+      {hovered && onSaveVar && (
         <VarHoverPopover
           name={hovered.name}
+          scope={detectScope(hovered.name, localScope, environmentVariables, collectionVariables, globalVariables)}
           value={resolvedMap[hovered.name]}
           anchor={hovered.rect}
-          onSet={v => { onSetLocalVar?.(hovered.name, v); setHovered(null) }}
+          hasCollection={hasCollection}
+          hasEnvironment={hasEnvironment}
+          collectionName={collectionName}
+          environmentName={environmentName}
+          onNavigateToVariables={onNavigateToVariables}
+          onSet={async (scope, val) => {
+            savingRef.current = true
+            clearTimeout(closeTimer.current)
+            try {
+              await onSaveVar(scope, hovered.name, val)
+              setHovered(null)
+            } finally {
+              savingRef.current = false
+            }
+          }}
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
         />
       )}
-    </div>
-  )
-}
-
-// ── VarHoverPopover ────────────────────────────────────────────────────────
-
-function VarHoverPopover({
-  name,
-  value,
-  anchor,
-  onSet,
-  onMouseEnter,
-  onMouseLeave,
-}: {
-  name: string
-  value: string | undefined
-  anchor: DOMRect
-  onSet: (v: string) => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-}) {
-  const [draft, setDraft] = useState(value ?? '')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 30)
-  }, [])
-
-  // Keep draft in sync when value changes from outside (e.g. env switch)
-  useEffect(() => { setDraft(value ?? '') }, [value])
-
-  return (
-    <div
-      style={{ position: 'fixed', top: anchor.bottom + 6, left: anchor.left, zIndex: 9999 }}
-      className="w-56 rounded border border-th-border bg-th-bg p-3 shadow-xl"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      {/* Variable name */}
-      <p className="mb-1 font-mono text-xs font-semibold">
-        <span className={value !== undefined ? 'text-th-accent' : 'text-yellow-400'}>
-          {`{{${name}}}`}
-        </span>
-      </p>
-
-      {/* Current resolved value */}
-      {value !== undefined && (
-        <p className="mb-2 truncate text-xs text-th-fg-subtle">
-          → <span className="font-mono text-th-fg">{value}</span>
-        </p>
-      )}
-      {value === undefined && (
-        <p className="mb-2 text-xs italic text-yellow-500/70">unset</p>
-      )}
-
-      {/* Quick-set input */}
-      <input
-        ref={inputRef}
-        type="text"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') onSet(draft) }}
-        placeholder={`Override value for this tab`}
-        className="mb-1.5 w-full rounded border border-th-border bg-th-input px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:ring-1 focus:ring-th-accent"
-      />
-      <p className="mb-2 text-xs text-th-fg-subtle">Local override — this tab only</p>
-      <div className="flex justify-end">
-        <button
-          onClick={() => onSet(draft)}
-          className="rounded bg-th-accent px-3 py-1 text-xs font-medium text-white hover:opacity-90"
-        >
-          Set
-        </button>
-      </div>
     </div>
   )
 }

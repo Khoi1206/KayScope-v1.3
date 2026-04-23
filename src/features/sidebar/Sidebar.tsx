@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal } from 'lucide-react'
+import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload } from 'lucide-react'
 import { useUiStore, type SidebarSection } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
@@ -13,6 +13,7 @@ import EnvironmentEditor from '../environment/EnvironmentEditor'
 import GlobalVarsEditor from '../variables/GlobalVarsEditor'
 import CurlImportModal from './CurlImportModal'
 import CollectionImportModal from './CollectionImportModal'
+import EnvironmentImportModal from './EnvironmentImportModal'
 import { cn } from '@/components/ui/cn'
 
 export default function Sidebar() {
@@ -21,6 +22,7 @@ export default function Sidebar() {
   const { fetchWorkspace } = useWorkspaceStore()
   const [showCurlImport, setShowCurlImport] = useState(false)
   const [showCollectionImport, setShowCollectionImport] = useState(false)
+  const [showEnvImport, setShowEnvImport] = useState(false)
 
   useEffect(() => {
     fetchWorkspace()
@@ -36,17 +38,17 @@ export default function Sidebar() {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-th-border bg-th-surface">
       {/* Section tabs */}
-      <div className="flex gap-1 border-b border-th-border px-2 pt-2">
+      <div className="flex border-b border-th-border">
         {navItems.map(({ section, icon, label }) => (
           <button
             key={section}
             onClick={() => setSidebarSection(section)}
             title={label}
             className={cn(
-              'flex flex-1 items-center justify-center rounded-t-md py-2.5 text-th-fg-muted transition-colors hover:text-th-fg',
+              'relative flex flex-1 items-center justify-center py-2 text-th-fg-muted transition-colors hover:text-th-fg',
               sidebarSection === section
-                ? 'bg-th-bg text-th-fg shadow-sm'
-                : 'hover:bg-th-surface-hover'
+                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-th-accent after:z-10'
+                : 'hover:bg-th-surface-hover/50'
             )}
           >
             {icon}
@@ -62,13 +64,14 @@ export default function Sidebar() {
             onImportCollection={() => setShowCollectionImport(true)}
           />
         )}
-        {sidebarSection === 'environments' && <EnvironmentsSection />}
+        {sidebarSection === 'environments' && <EnvironmentsSection onImport={() => setShowEnvImport(true)} />}
         {sidebarSection === 'globals' && <GlobalsSection />}
         {sidebarSection === 'history' && <HistorySection />}
       </div>
 
       {showCurlImport && <CurlImportModal onClose={() => setShowCurlImport(false)} />}
       {showCollectionImport && <CollectionImportModal onClose={() => setShowCollectionImport(false)} />}
+      {showEnvImport && <EnvironmentImportModal onClose={() => setShowEnvImport(false)} />}
     </aside>
   )
 }
@@ -87,7 +90,7 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="flex items-center justify-between px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.collections')}
         </span>
@@ -136,7 +139,7 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
   )
 }
 
-function EnvironmentsSection() {
+function EnvironmentsSection({ onImport }: { onImport: () => void }) {
   const t = useTranslations()
   const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment } =
     useEnvironmentStore()
@@ -150,17 +153,26 @@ function EnvironmentsSection() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="flex items-center justify-between px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.environments')}
         </span>
-        <button
-          onClick={() => setEditing(null)}
-          title={t('common.new')}
-          className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
-        >
-          <Plus size={13} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={onImport}
+            title="Import environment"
+            className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+          >
+            <Upload size={13} />
+          </button>
+          <button
+            onClick={() => setEditing(null)}
+            title={t('common.new')}
+            className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-1">
@@ -234,7 +246,7 @@ function GlobalsSection() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="flex items-center justify-between px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.globals')}
         </span>
@@ -283,7 +295,7 @@ function HistorySection() {
   const t = useTranslations()
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="px-3 py-2.5">
+      <div className="px-3 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">
           {t('nav.history')}
         </span>
