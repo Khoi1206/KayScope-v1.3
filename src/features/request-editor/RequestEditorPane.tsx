@@ -50,7 +50,7 @@ export default function RequestEditorPane() {
   } = useRequestStore()
   const { environments, activeEnvironmentId, setActiveEnvironment, updateEnvironment } = useEnvironmentStore()
   const { workspace, updateGlobalVariables } = useWorkspaceStore()
-  const { collections, updateCollection, renameRequest, patchRequest } = useCollectionStore()
+  const { collections, folders, requests: storeRequests, updateCollection, renameRequest, patchRequest } = useCollectionStore()
   const [editorTab, setEditorTab] = useState<EditorTab>('params')
   const [saving, setSaving] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
@@ -283,6 +283,14 @@ export default function RequestEditorPane() {
     }
   }
 
+  const tabHasContent: Partial<Record<EditorTab, boolean>> = snap ? {
+    params: snap.params.some(p => p.enabled && p.key),
+    headers: snap.headers.some(h => h.enabled && h.key),
+    body: snap.body.type !== 'none',
+    auth: snap.auth.type !== 'none',
+    scripts: !!(snap.preRequestScript?.trim() || snap.postRequestScript?.trim()),
+  } : {}
+
   const EDITOR_TABS: { key: EditorTab; label: string }[] = [
     { key: 'params', label: t('tabs.params') },
     { key: 'headers', label: t('tabs.headers') },
@@ -436,8 +444,26 @@ export default function RequestEditorPane() {
         </div>
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Request name header */}
-          <div className="flex items-center border-b border-th-border bg-th-surface px-3 py-1.5">
+          {/* Request name header with breadcrumb */}
+          <div className="flex items-center gap-1.5 border-b border-th-border bg-th-surface px-3 py-1.5">
+            {activeCollection && (() => {
+              const reqInStore = (storeRequests[activeCollection.id] ?? []).find(r => r.id === activeTab?.requestId)
+              const folder = reqInStore?.folderId
+                ? (folders[activeCollection.id] ?? []).find(f => f.id === reqInStore.folderId)
+                : null
+              return (
+                <>
+                  <span className="max-w-[120px] truncate text-xs text-th-fg-muted">{activeCollection.name}</span>
+                  {folder && (
+                    <>
+                      <span className="text-xs text-th-fg-subtle">/</span>
+                      <span className="max-w-[120px] truncate text-xs text-th-fg-muted">{folder.name}</span>
+                    </>
+                  )}
+                  <span className="text-xs text-th-fg-subtle">/</span>
+                </>
+              )
+            })()}
             <input
               type="text"
               value={nameDraft}
@@ -476,16 +502,6 @@ export default function RequestEditorPane() {
             onSaveVar={onSaveVar}
           />
 
-          {/* Collection badge */}
-          {activeCollection && (
-            <div className="flex items-center border-b border-th-border bg-th-surface px-3 py-0.5">
-              <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-500/20 text-orange-300">
-                <span className="font-bold">C</span>
-                <span>{activeCollection.name}</span>
-              </span>
-            </div>
-          )}
-
           {/* Vertical split: request editor top, response bottom */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Request editor (top ~60%) */}
@@ -503,7 +519,12 @@ export default function RequestEditorPane() {
                         : 'text-th-fg-muted hover:text-th-fg'
                     )}
                   >
-                    {label}
+                    <span className="relative inline-flex items-center gap-1">
+                      {label}
+                      {tabHasContent[key] && (
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-th-accent" />
+                      )}
+                    </span>
                   </button>
                 ))}
               </div>

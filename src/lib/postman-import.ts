@@ -80,18 +80,21 @@ function parseBody(body: any): ParsedRequest['body'] | undefined {
       json: 'json', javascript: 'javascript', html: 'html', xml: 'xml',
     }
     return {
-      type: lang === 'json' ? 'json' : 'raw',
+      type: 'raw',
       content: body.raw ?? '',
       rawType: rawTypeMap[lang] ?? 'text',
     }
   }
 
   if (body.mode === 'urlencoded') {
-    const content = (body.urlencoded ?? [])
-      .filter((p: any) => !p.disabled)
-      .map((p: any) => `${encodeURIComponent(p.key ?? '')}=${encodeURIComponent(p.value ?? '')}`)
-      .join('&')
-    return { type: 'x-www-form-urlencoded', content }
+    const formData = (body.urlencoded ?? [])
+      .filter((p: any) => p.type !== 'file')
+      .map((p: any) => ({
+        key: p.key ?? '',
+        value: p.value ?? '',
+        enabled: !p.disabled,
+      }))
+    return { type: 'x-www-form-urlencoded', formData }
   }
 
   if (body.mode === 'formdata') {

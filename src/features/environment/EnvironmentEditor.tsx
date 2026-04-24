@@ -212,6 +212,23 @@ export default function EnvironmentEditor({ env, onClose }: Props) {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-th-border px-5 py-3">
+          {isEdit && (
+            <button
+              onClick={() => {
+                const data = JSON.stringify({ name: env!.name, variables: env!.variables }, null, 2)
+                const blob = new Blob([data], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${env!.name.replace(/\s+/g, '-').toLowerCase()}-environment.json`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+              className="mr-auto rounded-md px-3 py-1.5 text-xs font-medium text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+            >
+              Export
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md px-3 py-1.5 text-xs font-medium text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"

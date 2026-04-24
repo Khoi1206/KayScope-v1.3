@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { useCollectionStore, type CollectionItem } from '@/store/collection.store'
 import { useRequestStore } from '@/store/request.store'
@@ -44,6 +44,38 @@ export default function CollectionTree() {
     deleteRequest,
   } = useCollectionStore()
   const openTab = useRequestStore(s => s.openTab)
+  const activeTabId = useRequestStore(s => s.activeTabId)
+  const activeTabs = useRequestStore(s => s.tabs)
+
+  // Auto-expand tree to reveal the active tab's request
+  useEffect(() => {
+    if (!activeTabId) return
+    const activeTab = activeTabs.find(t => t.id === activeTabId)
+    if (!activeTab?.collectionId || !activeTab.requestId) return
+
+    const colId = activeTab.collectionId
+    setExpanded(colId, true)
+
+    const loadAndExpand = async () => {
+      const state = useCollectionStore.getState()
+      if (!state.requests[colId]) {
+        await Promise.all([fetchFolders(colId), fetchRequests(colId)])
+      }
+      const reqList = useCollectionStore.getState().requests[colId] ?? []
+      const req = reqList.find(r => r.id === activeTab.requestId)
+      if (req?.folderId) {
+        const allFolders = useCollectionStore.getState().folders[colId] ?? []
+        let fId: string | null | undefined = req.folderId
+        while (fId) {
+          setExpanded(fId, true)
+          const folder = allFolders.find(f => f.id === fId)
+          fId = folder?.parentFolderId
+        }
+      }
+    }
+    loadAndExpand()
+  }, [activeTabId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [editingVars, setEditingVars] = useState<CollectionItem | null>(null)
   const [runningCollection, setRunningCollection] = useState<CollectionItem | null>(null)
 
@@ -86,6 +118,12 @@ export default function CollectionTree() {
       { id: req.id, title: req.name, requestId: req.id, collectionId: colId },
       { method: req.method, url: req.url }
     )
+  }
+
+  function handleExportCollection(colId: string, format: 'kayscope' | 'postman') {
+    const a = document.createElement('a')
+    a.href = `/api/collections/${colId}/export${format === 'postman' ? '?format=postman' : ''}`
+    a.click()
   }
 
   async function handleDeleteCollection(colId: string, name: string) {
@@ -148,6 +186,8 @@ export default function CollectionTree() {
                   items={[
                     { label: t('collection.run'), onClick: () => setRunningCollection(col) },
                     { label: t('collection.variables'), onClick: () => setEditingVars(col) },
+                    { label: t('collection.export'), onClick: () => handleExportCollection(col.id, 'kayscope') },
+                    { label: t('collection.exportPostman'), onClick: () => handleExportCollection(col.id, 'postman') },
                     { label: t('collection.delete'), onClick: () => handleDeleteCollection(col.id, col.name), danger: true },
                   ]}
                 />
@@ -161,6 +201,7 @@ export default function CollectionTree() {
                   <RequestRow
                     key={req.id}
                     req={req}
+                    isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
                     onOpen={() => handleOpenRequest(req.id, col.id)}
                     onDelete={() => handleDeleteRequest(req.id, col.id, req.name)}
                   />
@@ -176,8 +217,11 @@ export default function CollectionTree() {
                     onToggle={toggleExpanded}
                     onOpenRequest={rId => handleOpenRequest(rId, col.id)}
                     onAddRequest={fId => handleAddRequest(col.id, fId)}
+                    onAddFolder={fId => handleAddFolder(col.id, fId)}
                     onDeleteFolder={(fId, fName) => handleDeleteFolder(fId, col.id, fName)}
                     onDeleteRequest={(rId, rName) => handleDeleteRequest(rId, col.id, rName)}
+                    activeTabId={activeTabId}
+                    activeTabs={activeTabs}
                   />
                 ))}
 
@@ -249,15 +293,20 @@ function DropdownMenu({
 
 function RequestRow({
   req,
+  isActive,
   onOpen,
   onDelete,
 }: {
   req: { id: string; name: string; method: string }
+  isActive?: boolean
   onOpen: () => void
   onDelete: () => void
 }) {
   return (
-    <div className="group flex w-full items-center rounded hover:bg-th-surface-hover">
+    <div className={cn(
+      'group flex w-full items-center rounded',
+      isActive ? 'bg-th-surface-hover' : 'hover:bg-th-surface-hover'
+    )}>
       <button
         onClick={onOpen}
         className="flex flex-1 items-center gap-2 overflow-hidden px-2 py-1 text-xs"
@@ -293,8 +342,11 @@ function FolderRow({
   onToggle,
   onOpenRequest,
   onAddRequest,
+  onAddFolder,
   onDeleteFolder,
   onDeleteRequest,
+  activeTabId,
+  activeTabs,
 }: {
   folder: { id: string; name: string; parentFolderId?: string | null }
   allFolders: Array<{ id: string; name: string; parentFolderId?: string | null }>
@@ -303,8 +355,11 @@ function FolderRow({
   onToggle: (id: string) => void
   onOpenRequest: (id: string) => void
   onAddRequest: (folderId: string) => void
+  onAddFolder: (folderId: string) => void
   onDeleteFolder: (id: string, name: string) => void
   onDeleteRequest: (id: string, name: string) => void
+  activeTabId: string | null
+  activeTabs: Array<{ id: string; requestId?: string }>
 }) {
   const t = useTranslations()
   const isOpen = !!expanded[folder.id]
@@ -331,6 +386,7 @@ function FolderRow({
             trigger={<MoreHorizontal size={12} />}
             items={[
               { label: t('collection.addRequest'), onClick: () => onAddRequest(folder.id) },
+              { label: t('collection.addFolder'), onClick: () => onAddFolder(folder.id) },
               { label: t('collection.deleteFolder'), onClick: () => onDeleteFolder(folder.id, folder.name), danger: true },
             ]}
           />
@@ -343,6 +399,7 @@ function FolderRow({
             <RequestRow
               key={req.id}
               req={req}
+              isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
               onOpen={() => onOpenRequest(req.id)}
               onDelete={() => onDeleteRequest(req.id, req.name)}
             />
@@ -357,8 +414,11 @@ function FolderRow({
               onToggle={onToggle}
               onOpenRequest={onOpenRequest}
               onAddRequest={onAddRequest}
+              onAddFolder={onAddFolder}
               onDeleteFolder={onDeleteFolder}
               onDeleteRequest={onDeleteRequest}
+              activeTabId={activeTabId}
+              activeTabs={activeTabs}
             />
           ))}
         </div>

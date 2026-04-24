@@ -67,7 +67,7 @@ function parseOAS3(doc: Record<string, any>): ImportResult {
         let content = ''
         if (schema?.example) content = JSON.stringify(schema.example, null, 2)
         else if (schema?.type === 'object') content = '{}'
-        body = { type: 'json', content, rawType: 'json' }
+        body = { type: 'raw', content, rawType: 'json' }
       } else if (reqBody?.content?.['application/x-www-form-urlencoded']) {
         body = { type: 'x-www-form-urlencoded', content: '' }
       }
@@ -131,7 +131,7 @@ function parseSwagger2(doc: Record<string, any>): ImportResult {
       const bodyParam = (op.parameters ?? []).find((p: any) => p.in === 'body')
       let body: ParsedRequest['body'] | undefined
       if (bodyParam) {
-        body = { type: 'json', content: '{}', rawType: 'json' }
+        body = { type: 'raw', content: '{}', rawType: 'json' }
       }
 
       requests.push({ name, method: method.toUpperCase(), url, params, headers, body, folderTempId })

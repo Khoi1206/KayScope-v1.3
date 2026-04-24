@@ -142,7 +142,7 @@ export function parseCurl(input: string): ParsedCurl {
     body = { type: 'x-www-form-urlencoded', content: bodyContent }
   } else if (bodyContent) {
     const isJson = contentType.includes('json') || isJsonString(bodyContent)
-    body = { type: isJson ? 'json' : 'raw', content: bodyContent }
+    body = { type: 'raw', rawType: isJson ? 'json' : 'text', content: bodyContent }
   } else {
     body = { type: 'none', content: '' }
   }

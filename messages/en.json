@@ -123,6 +123,8 @@
     "addFolder": "Add Folder",
     "run": "Run Collection",
     "variables": "Collection Variables",
+    "export": "Export (KayScope)",
+    "exportPostman": "Export (Postman)",
     "delete": "Delete Collection",
     "deleteFolder": "Delete Folder",
     "deleteRequest": "Delete Request",

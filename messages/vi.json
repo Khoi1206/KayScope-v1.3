@@ -123,6 +123,8 @@
     "addFolder": "Thêm thư mục",
     "run": "Chạy collection",
     "variables": "Biến collection",
+    "export": "Xuất (KayScope)",
+    "exportPostman": "Xuất (Postman)",
     "delete": "Xóa collection",
     "deleteFolder": "Xóa thư mục",
     "deleteRequest": "Xóa request",
