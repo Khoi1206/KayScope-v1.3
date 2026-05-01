@@ -1,3 +1,5 @@
+@import '@xyflow/react/dist/style.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -67,4 +69,49 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* ── xyflow Controls — match app theme ── */
+.react-flow__controls {
+  border: 1px solid var(--th-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+}
+.react-flow__controls button {
+  background: var(--th-surface);
+  border-bottom: 1px solid var(--th-border);
+  color: var(--th-fg-muted);
+  width: 26px;
+  height: 26px;
+}
+.react-flow__controls button:hover {
+  background: var(--th-surface-hover);
+  color: var(--th-fg);
+}
+.react-flow__controls button svg {
+  fill: currentColor;
+  max-width: 12px;
+  max-height: 12px;
+}
+.react-flow__controls button:last-child {
+  border-bottom: none;
+}
+
+/* ── xyflow MiniMap — match app theme ── */
+.react-flow__minimap {
+  background: var(--th-surface) !important;
+  border: 1px solid var(--th-border) !important;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.react-flow__minimap-mask {
+  fill: rgba(120, 120, 140, 0.18);
+}
+.dark .react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.45);
+}
+.react-flow__minimap-node {
+  fill: var(--th-border);
+  stroke: var(--th-border-soft);
 }

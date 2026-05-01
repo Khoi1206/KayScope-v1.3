@@ -309,7 +309,7 @@ export default function RequestEditorPane() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Tab bar */}
-      <div ref={tabBarRef} className="flex items-center border-b border-th-border bg-th-surface">
+      <div ref={tabBarRef} className="flex h-9 shrink-0 items-center border-b border-th-border bg-th-surface">
         {/* Fixed-window tab strip — no scroll, clips to maxVisible */}
         <div className="flex items-center gap-1 overflow-hidden px-1.5 py-1">
           {visibleTabs.map(tab => {

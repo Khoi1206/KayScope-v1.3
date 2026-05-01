@@ -151,3 +151,94 @@ export const runnerSchema = z.object({
 })
 
 export type RunnerInput = z.infer<typeof runnerSchema>
+
+// ── Test Suites ────────────────────────────────────────────────────────────
+
+export const createTestSuiteSchema = z.object({
+  collectionId: nonEmpty,
+  name: nonEmpty.max(200),
+  description: z.string().max(1000).optional(),
+  environmentId: z.string().optional(),
+  dataRows: z.array(z.record(z.string())).max(1000).default([]),
+})
+
+export const updateTestSuiteSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(1000).nullable().optional(),
+  environmentId: z.string().nullable().optional(),
+  dataRows: z.array(z.record(z.string())).max(1000).optional(),
+})
+
+export const testRunsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+})
+
+export type CreateTestSuiteInput = z.infer<typeof createTestSuiteSchema>
+export type UpdateTestSuiteInput = z.infer<typeof updateTestSuiteSchema>
+
+// ── Flows ──────────────────────────────────────────────────────────────────
+
+const nodeTypeEnum = z.enum([
+  'navigate',
+  'click_text', 'click_role', 'click_placeholder', 'click_title', 'hover_text',
+  'fill_placeholder', 'fill_label', 'select_option',
+  'assert_url', 'assert_visible', 'assert_not_visible', 'assert_value',
+  'wait_ms', 'wait_selector',
+  'screenshot',
+])
+
+const flowNodeDataSchema = z.object({
+  type: nodeTypeEnum,
+  label: z.string(),
+  url: z.string().optional(),
+  text: z.string().optional(),
+  role: z.enum(['button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'option', 'heading']).optional(),
+  roleName: z.string().optional(),
+  placeholder: z.string().optional(),
+  value: z.string().optional(),
+  labelText: z.string().optional(),
+  pattern: z.string().optional(),
+  ms: z.number().int().min(0).max(60000).optional(),
+  screenshotName: z.string().optional(),
+  title: z.string().optional(),
+  option: z.string().optional(),
+})
+
+const flowNodeSchema = z.object({
+  id: nonEmpty,
+  type: z.literal('action'),
+  position: z.object({ x: z.number(), y: z.number() }),
+  data: flowNodeDataSchema,
+})
+
+const flowEdgeSchema = z.object({
+  id: nonEmpty,
+  source: nonEmpty,
+  target: nonEmpty,
+  label: z.string().optional(),
+  data: z.object({
+    condition: z.enum(['always', 'if_visible', 'if_not_visible']).default('always'),
+    conditionText: z.string().optional(),
+  }).optional(),
+})
+
+export const createFlowSchema = z.object({
+  name: nonEmpty.max(200),
+  description: z.string().max(1000).optional(),
+  nodes: z.array(flowNodeSchema).max(200).default([]),
+  edges: z.array(flowEdgeSchema).max(500).default([]),
+})
+
+export const updateFlowSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(1000).nullable().optional(),
+  nodes: z.array(flowNodeSchema).max(200).optional(),
+  edges: z.array(flowEdgeSchema).max(500).optional(),
+})
+
+export const flowRunsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+})
+
+export type CreateFlowInput = z.infer<typeof createFlowSchema>
+export type UpdateFlowInput = z.infer<typeof updateFlowSchema>

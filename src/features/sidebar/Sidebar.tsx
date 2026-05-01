@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload } from 'lucide-react'
+import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload, Download, FlaskConical, Workflow } from 'lucide-react'
 import { useUiStore, type SidebarSection } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
@@ -14,6 +14,8 @@ import GlobalVarsEditor from '../variables/GlobalVarsEditor'
 import CurlImportModal from './CurlImportModal'
 import CollectionImportModal from './CollectionImportModal'
 import EnvironmentImportModal from './EnvironmentImportModal'
+import TestsSection from '../tests/TestSuiteList'
+import FlowsSection from '../flows/FlowList'
 import { cn } from '@/components/ui/cn'
 
 export default function Sidebar() {
@@ -33,19 +35,21 @@ export default function Sidebar() {
     { section: 'environments', icon: <Layers size={18} />, label: t('nav.environments') },
     { section: 'globals', icon: <Globe size={18} />, label: t('nav.globals') },
     { section: 'history', icon: <History size={18} />, label: t('nav.history') },
+    { section: 'tests', icon: <FlaskConical size={18} />, label: t('nav.tests') },
+    { section: 'flows', icon: <Workflow size={18} />, label: t('nav.flows') },
   ]
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-th-border bg-th-surface">
       {/* Section tabs */}
-      <div className="flex border-b border-th-border">
+      <div className="flex h-9 shrink-0 border-b border-th-border">
         {navItems.map(({ section, icon, label }) => (
           <button
             key={section}
             onClick={() => setSidebarSection(section)}
             title={label}
             className={cn(
-              'relative flex flex-1 items-center justify-center py-2 text-th-fg-muted transition-colors hover:text-th-fg',
+              'relative flex flex-1 items-center justify-center text-th-fg-muted transition-colors hover:text-th-fg',
               sidebarSection === section
                 ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-th-accent after:z-10'
                 : 'hover:bg-th-surface-hover/50'
@@ -67,6 +71,8 @@ export default function Sidebar() {
         {sidebarSection === 'environments' && <EnvironmentsSection onImport={() => setShowEnvImport(true)} />}
         {sidebarSection === 'globals' && <GlobalsSection />}
         {sidebarSection === 'history' && <HistorySection />}
+        {sidebarSection === 'tests' && <TestsSection />}
+        {sidebarSection === 'flows' && <FlowsSection />}
       </div>
 
       {showCurlImport && <CurlImportModal onClose={() => setShowCurlImport(false)} />}
@@ -219,6 +225,22 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
                 className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-th-fg"
               >
                 <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => {
+                  const data = JSON.stringify({ name: env.name, variables: env.variables }, null, 2)
+                  const blob = new Blob([data], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${env.name.replace(/\s+/g, '-').toLowerCase()}-environment.json`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                title="Export environment"
+                className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-th-fg"
+              >
+                <Download size={12} />
               </button>
               <button
                 onClick={() => handleDelete(env.id, env.name)}

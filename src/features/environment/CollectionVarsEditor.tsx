@@ -71,54 +71,64 @@ export default function CollectionVarsEditor({ collection, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-[20px_1fr_1fr_28px] gap-2 border-b border-th-border px-5 py-2 text-[11px] font-semibold uppercase tracking-widest text-th-fg-subtle">
-            <span /><span>Key</span><span>Value</span><span />
-          </div>
-
-          <div className="flex flex-col">
-            {variables.map((v, i) => (
-              <div key={i} className="group grid grid-cols-[20px_1fr_1fr_28px] items-center gap-2 border-b border-th-border/40 px-5 py-1.5 transition-colors hover:bg-th-surface-hover/40">
-                <input
-                  type="checkbox"
-                  checked={v.enabled}
-                  onChange={e => updateVariable(i, { enabled: e.target.checked })}
-                  className="h-3.5 w-3.5 accent-th-accent"
-                />
-                <input
-                  type="text"
-                  value={v.key}
-                  placeholder="Variable name"
-                  onChange={e => updateVariable(i, { key: e.target.value })}
-                  className="rounded-md border border-th-border bg-th-input px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
-                />
-                <input
-                  type="text"
-                  value={v.value}
-                  placeholder="Value"
-                  onChange={e => updateVariable(i, { value: e.target.value })}
-                  className="rounded-md border border-th-border bg-th-input px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
-                />
-                <button
-                  onClick={() => removeVariable(i)}
-                  title={tc('removeRow')}
-                  className="flex items-center justify-center rounded-md p-1 text-th-fg-subtle opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-                >
-                  <Trash2 size={12} />
-                </button>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {variables.length > 0 && (
+            <div className="rounded-md border border-th-border overflow-hidden">
+              <div className="grid grid-cols-[32px_1fr_1fr_32px] gap-0 border-b border-th-border bg-th-surface px-2 py-1.5 text-[11px] font-medium text-th-fg-muted">
+                <span />
+                <span className="px-2">Key</span>
+                <span className="px-2">Value</span>
+                <span />
               </div>
-            ))}
-          </div>
-
-          <div className="px-5 py-3">
-            <button
-              onClick={addVariable}
-              className="flex items-center gap-1.5 text-xs text-th-fg-subtle transition-colors hover:text-th-fg"
-            >
-              <Plus size={12} />
-              Add variable
-            </button>
-          </div>
+              {variables.map((v, i) => (
+                <div
+                  key={i}
+                  className={`grid grid-cols-[32px_1fr_1fr_32px] items-center gap-0 px-2 py-1 transition-colors ${
+                    !v.enabled ? 'opacity-40' : ''
+                  } ${i > 0 ? 'border-t border-th-border/50' : ''} hover:bg-th-surface/50`}
+                >
+                  <div className="flex justify-center">
+                    <input
+                      type="checkbox"
+                      checked={v.enabled}
+                      onChange={e => updateVariable(i, { enabled: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-th-accent"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={v.key}
+                    placeholder="Variable name"
+                    onChange={e => updateVariable(i, { key: e.target.value })}
+                    className="mx-1 rounded-sm border-0 bg-transparent px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:bg-th-input focus:ring-1 focus:ring-th-accent/50"
+                  />
+                  <input
+                    type="text"
+                    value={v.value}
+                    placeholder="Value"
+                    onChange={e => updateVariable(i, { value: e.target.value })}
+                    className="mx-1 rounded-sm border-0 bg-transparent px-2 py-1 font-mono text-xs text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:bg-th-input focus:ring-1 focus:ring-th-accent/50"
+                  />
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => removeVariable(i)}
+                      title={tc('removeRow')}
+                      className="rounded p-1 text-th-fg-muted transition-colors hover:text-red-400"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={addVariable}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+          >
+            <Plus size={12} />
+            Add variable
+          </button>
 
           {error && (
             <div className="mx-5 mb-3 rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>

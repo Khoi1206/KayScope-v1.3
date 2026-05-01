@@ -186,8 +186,7 @@ export default function CollectionTree() {
                   items={[
                     { label: t('collection.run'), onClick: () => setRunningCollection(col) },
                     { label: t('collection.variables'), onClick: () => setEditingVars(col) },
-                    { label: t('collection.export'), onClick: () => handleExportCollection(col.id, 'kayscope') },
-                    { label: t('collection.exportPostman'), onClick: () => handleExportCollection(col.id, 'postman') },
+                    { label: 'Export', onClick: () => handleExportCollection(col.id, 'postman') },
                     { label: t('collection.delete'), onClick: () => handleDeleteCollection(col.id, col.name), danger: true },
                   ]}
                 />
