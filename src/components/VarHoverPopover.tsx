@@ -109,13 +109,6 @@ export default function VarHoverPopover({
         )}
       </div>
 
-      {/* Current resolved value */}
-      {value !== undefined && (
-        <p className="mb-2 truncate text-[11px] text-th-fg-subtle">
-          → <span className="font-mono text-th-fg">{value}</span>
-        </p>
-      )}
-
       {/* Value input */}
       <input
         ref={inputRef}

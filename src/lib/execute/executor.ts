@@ -1,8 +1,8 @@
 import type { ExecuteInput } from '@/schemas'
-import { interpolate, buildHeaders, buildParams } from '@/core/interpolation/engine'
+import { interpolate, buildHeaders } from '@/core/interpolation/engine'
 import { emptyScopes, mergeScopes } from '@/core/interpolation/scope'
 import { createDynamicVarSnapshot } from '@/core/interpolation/dynamic-vars'
-import { buildRequestBody, type BuiltBody } from './body-builder'
+import { buildRequestBody } from './body-builder'
 import { resolveAuthHeaders } from './auth-header'
 import { httpClient, type HttpResponse } from './http-client'
 import { ssrfGuard } from './ssrf-guard'
@@ -12,8 +12,9 @@ import { executeScript, type ScriptContext } from '@/lib/scripting/sandbox'
 import { findWorkspaceById } from '@/db/queries/workspaces'
 import { findEnvironmentByIdForWorkspace } from '@/db/queries/environments'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
-import { decryptValue, encryptValue, isEncrypted } from '@/lib/crypto'
-import type { Variable } from '@/db/schema'
+import { decryptVariables } from './variable-crypto'
+import { saveToHistory } from './history-persister'
+import { persistMutations } from './variable-persister'
 import logger from '@/lib/logger'
 
 // ── Result types ───────────────────────────────────────────────────────────
@@ -40,7 +41,6 @@ export async function execute(
   userId: string,
   ip: string
 ): Promise<ExecuteResult> {
-  // Rate limit
   if (!await checkRateLimit(ip, getRedisClient())) {
     return { rateLimited: true, error: 'Rate limit exceeded. Try again in a moment.' }
   }
@@ -52,9 +52,9 @@ export async function execute(
     input.collectionId ? findCollectionByIdForWorkspace(input.collectionId, input.workspaceId) : null,
   ])
 
-  const globalVars = decryptAllVariables(workspace?.globalVariables ?? [])
-  const envVars = decryptAllVariables(environment?.variables ?? [])
-  const collectionVars = decryptAllVariables(collection?.variables ?? [])
+  const globalVars = decryptVariables(workspace?.globalVariables ?? [])
+  const envVars = decryptVariables(environment?.variables ?? [])
+  const collectionVars = decryptVariables(collection?.variables ?? [])
 
   // 2. Build full scope set
   const scopes = mergeScopes(emptyScopes(), {
@@ -94,10 +94,8 @@ export async function execute(
     if (preScriptError) {
       return { preScriptError, logs: preResult.logs, tests: preResult.tests }
     }
-    // Apply pre-script scope mutations
     applyMutationsToContext(scriptCtx, preResult.mutations)
     mergeScriptMutations(scopes, preResult.mutations)
-    // Apply pre-script request mutations (pm.request.setHeader / pm.request.setBody)
     const rm = preResult.mutations.requestMutations
     if (rm) {
       for (const [key, value] of Object.entries(rm.headers)) {
@@ -151,17 +149,11 @@ export async function execute(
   // 10. Execute HTTP request
   let httpResponse: HttpResponse
   try {
-    httpResponse = await httpClient.send({
-      method: input.method,
-      url: finalUrl,
-      headers: mergedHeaders,
-      body: body,
-    })
+    httpResponse = await httpClient.send({ method: input.method, url: finalUrl, headers: mergedHeaders, body })
   } catch (err: unknown) {
     return { error: err instanceof Error ? err.message : 'Request failed' }
   }
 
-  // Update pm.request to resolved values for post-request script
   scriptCtx.request = {
     method: input.method,
     url: finalUrl,
@@ -175,28 +167,24 @@ export async function execute(
   let postTests: Array<{ name: string; passed: boolean; error?: string }> = []
 
   if (input.postRequestScript?.trim()) {
-    const postResult = await executeScript(
-      input.postRequestScript,
-      scriptCtx,
-      {
-        status: httpResponse.status,
-        statusText: httpResponse.statusText,
-        headers: httpResponse.headers,
-        body: httpResponse.body,
-        durationMs: httpResponse.durationMs,
-      }
-    )
+    const postResult = await executeScript(input.postRequestScript, scriptCtx, {
+      status: httpResponse.status,
+      statusText: httpResponse.statusText,
+      headers: httpResponse.headers,
+      body: httpResponse.body,
+      durationMs: httpResponse.durationMs,
+    })
     postScriptError = postResult.error
     postLogs = postResult.logs
     postTests = postResult.tests
 
-    // Apply post-script mutations
     applyMutationsToContext(scriptCtx, postResult.mutations)
 
     // 12. Persist scope mutations back to DB (fire-and-forget)
-    persistMutations(input, userId, scriptCtx, postResult.mutations).catch(err => {
-      logger.error(err, 'Failed to persist script mutations')
-    })
+    persistMutations(
+      { workspaceId: input.workspaceId, environmentId: input.environmentId, collectionId: input.collectionId },
+      postResult.mutations
+    ).catch(err => logger.error(err, 'Failed to persist script mutations'))
   }
 
   // 13. Build response
@@ -214,23 +202,13 @@ export async function execute(
   }
 
   // 14. Record history (fire-and-forget — never blocks the response)
-  saveToHistory(input, userId, finalUrl, mergedHeaders, body, result).catch(err => {
-    logger.warn(err, 'Failed to save history entry')
-  })
+  saveToHistory(input, userId, finalUrl, mergedHeaders, typeof body === 'string' ? body : null, result)
+    .catch(err => logger.warn(err, 'Failed to save history entry'))
 
   return result
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-function decryptAllVariables(variables: Variable[]): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const v of variables) {
-    if (!v.enabled) continue
-    result[v.key] = isEncrypted(v.value) ? decryptValue(v.value) : v.value
-  }
-  return result
-}
 
 function applyMutationsToContext(
   ctx: ScriptContext,
@@ -250,90 +228,4 @@ function mergeScriptMutations(
   Object.assign(scopes.environment, mutations.environment)
   Object.assign(scopes.collection, mutations.collection)
   Object.assign(scopes.global, mutations.global)
-}
-
-async function saveToHistory(
-  input: ExecuteInput,
-  userId: string,
-  resolvedUrl: string,
-  requestHeaders: Record<string, string>,
-  requestBody: BuiltBody['body'],
-  result: ExecuteResult
-) {
-  const { createHistory } = await import('@/db/queries/history')
-  await createHistory({
-    workspaceId: input.workspaceId,
-    requestId: input.requestId ?? null,
-    userId,
-    method: input.method,
-    url: resolvedUrl,
-    requestHeaders,
-    requestBody: typeof requestBody === 'string' ? requestBody : null,
-    status: result.status ?? null,
-    statusText: result.statusText ?? null,
-    responseHeaders: result.headers ?? null,
-    responseBody: result.body ?? null,
-    durationMs: result.durationMs ?? null,
-    size: result.size ?? null,
-  })
-}
-
-async function persistMutations(
-  input: ExecuteInput,
-  userId: string,
-  ctx: ScriptContext,
-  mutations: { environment: Record<string, string>; collection: Record<string, string>; global: Record<string, string> }
-) {
-  const { updateEnvironment } = await import('@/db/queries/environments')
-  const { updateCollection } = await import('@/db/queries/collections')
-  const { updateWorkspace } = await import('@/db/queries/workspaces')
-
-  function applyMutationsToVars(
-    vars: Variable[],
-    mutated: Record<string, string>
-  ): Variable[] {
-    const updated = vars.map(v => {
-      if (mutated[v.key] === undefined) return v
-      const newVal = mutated[v.key]!
-      return { ...v, value: v.secret ? encryptValue(newVal) : newVal }
-    })
-    for (const [key, value] of Object.entries(mutated)) {
-      if (!updated.find(v => v.key === key)) {
-        updated.push({ key, value, enabled: true, secret: false })
-      }
-    }
-    return updated
-  }
-
-  // Persist environment mutations
-  if (input.environmentId && Object.keys(mutations.environment).length > 0) {
-    const { findEnvironmentByIdForWorkspace } = await import('@/db/queries/environments')
-    const env = await findEnvironmentByIdForWorkspace(input.environmentId, input.workspaceId)
-    if (env) {
-      await updateEnvironment(input.environmentId, {
-        variables: applyMutationsToVars(env.variables, mutations.environment),
-      })
-    }
-  }
-
-  // Persist collection variable mutations
-  if (input.collectionId && Object.keys(mutations.collection).length > 0) {
-    const { findCollectionByIdForWorkspace } = await import('@/db/queries/collections')
-    const col = await findCollectionByIdForWorkspace(input.collectionId, input.workspaceId)
-    if (col) {
-      await updateCollection(input.collectionId, {
-        variables: applyMutationsToVars(col.variables, mutations.collection),
-      })
-    }
-  }
-
-  // Persist global variable mutations
-  if (Object.keys(mutations.global).length > 0) {
-    const ws = await findWorkspaceById(input.workspaceId)
-    if (ws) {
-      await updateWorkspace(input.workspaceId, {
-        globalVariables: applyMutationsToVars(ws.globalVariables, mutations.global),
-      })
-    }
-  }
 }

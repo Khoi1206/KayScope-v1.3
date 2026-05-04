@@ -9,28 +9,9 @@ import {
 import { updateEnvironmentSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import { encryptValue, isEncrypted, maskValue } from '@/lib/crypto'
-import type { Variable } from '@/db/schema'
+import { maskVariables, encryptVariables } from '@/lib/execute/variable-crypto'
 
 type Params = { params: { id: string } }
-
-function maskVariables(variables: Variable[]): Variable[] {
-  return variables.map(v => v.secret ? { ...v, value: maskValue() } : v)
-}
-
-function encryptVariables(incoming: Variable[], existing: Variable[]): Variable[] {
-  return incoming.map(v => {
-    if (!v.secret) return v
-    const existingVar = existing.find(e => e.key === v.key)
-    // If value is the mask (unchanged secret), keep existing encrypted value
-    if (existingVar?.secret && v.value === maskValue()) {
-      return { ...v, value: existingVar.value }
-    }
-    // Already encrypted (shouldn't happen from client, but guard)
-    if (isEncrypted(v.value)) return v
-    return { ...v, value: encryptValue(v.value) }
-  })
-}
 
 export function GET(_req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {

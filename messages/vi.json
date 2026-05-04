@@ -43,6 +43,13 @@
     "saving": "Đang lưu…",
     "saved": "Đã lưu",
     "emptyState": "Mở hoặc tạo yêu cầu để bắt đầu",
+    "unsavedDialog": {
+      "title": "Thay đổi chưa lưu",
+      "message": "Tab \u201c{name}\u201d có thay đổi chưa được lưu.",
+      "save": "Lưu",
+      "discard": "Bỏ qua",
+      "cancel": "Hủy"
+    },
     "tabs": {
       "params": "Tham số",
       "headers": "Headers",
@@ -276,6 +283,15 @@
       "passRate": "Tỷ lệ đạt",
       "avgDuration": "Thời gian trung bình"
     }
+  },
+  "examples": {
+    "saveResponse": "Lưu Response",
+    "saveRequestFirst": "Lưu request vào collection trước",
+    "namePlaceholder": "VD: 200 OK",
+    "confirmDelete": "Xóa ví dụ này?",
+    "noExamples": "Chưa có ví dụ nào",
+    "view": "Xem ví dụ",
+    "examples": "Ví dụ"
   },
   "confirm": {
     "deleteTitle": "Xóa '{name}'?",

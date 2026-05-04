@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { useFlowStore } from '@/store/flow.store'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,8 @@ export const useRequestStore = create<RequestStore>()(
       activeTabId: null,
 
       openTab: (meta, snapshot) => {
+        // Opening a request tab dismisses the flow canvas
+        useFlowStore.getState().setActiveFlow(null)
         const existing = get().tabs.find(t => t.id === meta.id)
         if (existing) {
           set({ activeTabId: meta.id })

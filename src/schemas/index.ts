@@ -242,3 +242,29 @@ export const flowRunsQuerySchema = z.object({
 
 export type CreateFlowInput = z.infer<typeof createFlowSchema>
 export type UpdateFlowInput = z.infer<typeof updateFlowSchema>
+
+// ── Examples ───────────────────────────────────────────────────────────────
+
+export const createExampleSchema = z.object({
+  name: nonEmpty.max(200),
+  status: z.number().int().optional(),
+  statusText: z.string().optional(),
+  responseHeaders: z.record(z.string()).optional(),
+  responseBody: z.string().max(51_200).optional(),
+  durationMs: z.number().int().optional(),
+  size: z.number().int().optional(),
+  // Request snapshot
+  requestMethod: z.string().max(16).optional(),
+  requestUrl: z.string().max(4096).optional(),
+  requestParams: z.array(kvPairSchema).optional(),
+  requestHeaders: z.array(kvPairSchema).optional(),
+  requestBody: reqBodySchema.optional(),
+  requestAuth: reqAuthSchema.optional(),
+})
+
+export const renameExampleSchema = z.object({
+  name: nonEmpty.max(200),
+})
+
+export type CreateExampleInput = z.infer<typeof createExampleSchema>
+export type RenameExampleInput = z.infer<typeof renameExampleSchema>

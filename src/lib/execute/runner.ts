@@ -1,4 +1,4 @@
-import { interpolate, buildHeaders, buildParams } from '@/core/interpolation/engine'
+import { interpolate, buildHeaders } from '@/core/interpolation/engine'
 import { emptyScopes, mergeScopes } from '@/core/interpolation/scope'
 import { createDynamicVarSnapshot } from '@/core/interpolation/dynamic-vars'
 import { buildRequestBody } from './body-builder'
@@ -10,8 +10,8 @@ import { findWorkspaceById } from '@/db/queries/workspaces'
 import { findEnvironmentById } from '@/db/queries/environments'
 import { findCollectionById } from '@/db/queries/collections'
 import { findRequestsByCollection } from '@/db/queries/requests'
-import { decryptValue, encryptValue, isEncrypted } from '@/lib/crypto'
-import type { Variable } from '@/db/schema'
+import { decryptVariables } from './variable-crypto'
+import { persistMutations } from './variable-persister'
 import type { DataRow } from '@/lib/data-parser'
 import logger from '@/lib/logger'
 
@@ -69,26 +69,23 @@ export async function runCollection(
   input: RunnerInput,
   userId: string
 ): Promise<RunnerResult> {
-  // Load collection metadata + requests
   const collection = await findCollectionById(input.collectionId)
   if (!collection) throw new Error(`Collection not found: ${input.collectionId}`)
 
   const allRequests = await findRequestsByCollection(input.collectionId)
-  // Order: top-level first, then folder requests, all sorted by createdAt
   const ordered = [
     ...allRequests.filter(r => !r.folderId),
     ...allRequests.filter(r => !!r.folderId),
   ]
 
-  // Load persistent scopes once (they'll be re-read from DB for mutations)
   const [workspace, environment] = await Promise.all([
     findWorkspaceById(input.workspaceId),
     input.environmentId ? findEnvironmentById(input.environmentId) : null,
   ])
 
-  const globalVars = decryptVars(workspace?.globalVariables ?? [])
-  const envVars = decryptVars(environment?.variables ?? [])
-  const collectionVars = decryptVars(collection.variables ?? [])
+  const globalVars = decryptVariables(workspace?.globalVariables ?? [])
+  const envVars = decryptVariables(environment?.variables ?? [])
+  const collectionVars = decryptVariables(collection.variables ?? [])
 
   const iterations = input.dataRows.length > 0 ? input.dataRows : [{}]
   const iterationResults: IterationResult[] = []
@@ -98,7 +95,6 @@ export async function runCollection(
 
     // Each iteration starts with fresh local scope — carry-forward happens request-to-request
     let carryLocal: Record<string, string> = {}
-    // Take a fresh snapshot of persistent scopes at the start of each iteration
     let iterEnvVars = { ...envVars }
     let iterCollVars = { ...collectionVars }
     let iterGlobalVars = { ...globalVars }
@@ -112,7 +108,6 @@ export async function runCollection(
         environmentId: input.environmentId,
         collectionId: input.collectionId,
         userId,
-        // Scopes entering this request
         localScope: carryLocal,
         dataRow,
         envVars: iterEnvVars,
@@ -125,7 +120,6 @@ export async function runCollection(
 
       // Carry-forward: local mutations flow to the next request in the same iteration
       carryLocal = { ...carryLocal, ...result.localMutations }
-      // Persistent scope mutations are reflected in-memory for subsequent requests
       iterEnvVars = { ...iterEnvVars, ...result.envMutations }
       iterCollVars = { ...iterCollVars, ...result.collMutations }
       iterGlobalVars = { ...iterGlobalVars, ...result.globalMutations }
@@ -134,14 +128,11 @@ export async function runCollection(
     iterationResults.push({ iteration: iterIdx + 1, dataRow, results: requestResults })
   }
 
-  // Build summary
-  const summary = buildSummary(iterationResults)
-
   return {
     collectionId: input.collectionId,
     collectionName: collection.name,
     iterations: iterationResults,
-    summary,
+    summary: buildSummary(iterationResults),
   }
 }
 
@@ -229,7 +220,6 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
       }
     }
     applyMutations(scriptCtx, scopes, pre.mutations)
-    // Apply pm.request.setHeader / pm.request.setBody mutations
     const rm = pre.mutations.requestMutations
     if (rm) {
       for (const [key, value] of Object.entries(rm.headers)) {
@@ -300,7 +290,7 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
   let postError: string | undefined
   let postLogs: string[] = []
   let postTests: Array<{ name: string; passed: boolean; error?: string }> = []
-  let allMutations = { local: {}, environment: {}, collection: {}, global: {} } as typeof scriptCtx & { local: Record<string, string>; environment: Record<string, string>; collection: Record<string, string>; global: Record<string, string> }
+  let allMutations = { local: {} as Record<string, string>, environment: {} as Record<string, string>, collection: {} as Record<string, string>, global: {} as Record<string, string> }
 
   if (req.postRequestScript?.trim()) {
     const post = await executeScript(req.postRequestScript, scriptCtx, {
@@ -315,12 +305,12 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
     postTests = post.tests
     applyMutations(scriptCtx, scopes, post.mutations)
 
-    // Persist env/collection/global mutations to DB (async, non-blocking per request)
-    persistRunnerMutations(inp, post.mutations).catch(err => {
-      logger.warn(err, 'Runner: failed to persist mutations')
-    })
+    persistMutations(
+      { workspaceId: inp.workspaceId, environmentId: inp.environmentId, collectionId: inp.collectionId },
+      post.mutations
+    ).catch(err => logger.warn(err, 'Runner: failed to persist mutations'))
 
-    allMutations = post.mutations as typeof allMutations
+    allMutations = post.mutations
   }
 
   return {
@@ -337,23 +327,14 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
       logs: postLogs,
       postScriptError: postError,
     },
-    localMutations: allMutations.local ?? {},
-    envMutations: allMutations.environment ?? {},
-    collMutations: allMutations.collection ?? {},
-    globalMutations: allMutations.global ?? {},
+    localMutations: allMutations.local,
+    envMutations: allMutations.environment,
+    collMutations: allMutations.collection,
+    globalMutations: allMutations.global,
   }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function decryptVars(variables: Variable[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const v of variables) {
-    if (!v.enabled) continue
-    out[v.key] = isEncrypted(v.value) ? decryptValue(v.value) : v.value
-  }
-  return out
-}
 
 function applyMutations(
   ctx: ScriptContext,
@@ -368,42 +349,6 @@ function applyMutations(
   Object.assign(scopes.environment, mutations.environment)
   Object.assign(scopes.collection, mutations.collection)
   Object.assign(scopes.global, mutations.global)
-}
-
-async function persistRunnerMutations(
-  inp: RunRequestInput,
-  mutations: { environment: Record<string, string>; collection: Record<string, string>; global: Record<string, string> }
-) {
-  const { updateEnvironment } = await import('@/db/queries/environments')
-  const { updateCollection } = await import('@/db/queries/collections')
-  const { updateWorkspace } = await import('@/db/queries/workspaces')
-  const { findEnvironmentById } = await import('@/db/queries/environments')
-
-  function applyToVars(vars: Variable[], mutated: Record<string, string>): Variable[] {
-    const updated = vars.map(v => {
-      if (mutated[v.key] === undefined) return v
-      return { ...v, value: v.secret ? encryptValue(mutated[v.key]!) : mutated[v.key]! }
-    })
-    for (const [key, value] of Object.entries(mutated)) {
-      if (!updated.find(v => v.key === key)) updated.push({ key, value, enabled: true, secret: false })
-    }
-    return updated
-  }
-
-  if (inp.environmentId && Object.keys(mutations.environment).length > 0) {
-    const env = await findEnvironmentById(inp.environmentId)
-    if (env) await updateEnvironment(inp.environmentId, { variables: applyToVars(env.variables, mutations.environment) })
-  }
-
-  if (inp.collectionId && Object.keys(mutations.collection).length > 0) {
-    const col = await findCollectionById(inp.collectionId)
-    if (col) await updateCollection(inp.collectionId, { variables: applyToVars(col.variables ?? [], mutations.collection) })
-  }
-
-  if (Object.keys(mutations.global).length > 0) {
-    const ws = await findWorkspaceById(inp.workspaceId)
-    if (ws) await updateWorkspace(inp.workspaceId, { globalVariables: applyToVars(ws.globalVariables, mutations.global) })
-  }
 }
 
 function buildSummary(iterations: IterationResult[]): RunnerSummary {

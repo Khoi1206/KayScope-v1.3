@@ -4,22 +4,7 @@ import { findWorkspaceByOwner, updateWorkspace } from '@/db/queries/workspaces'
 import { updateWorkspaceSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
-import { encryptValue, isEncrypted, maskValue } from '@/lib/crypto'
-import type { Variable } from '@/db/schema'
-
-function maskVariables(variables: Variable[]): Variable[] {
-  return variables.map(v => v.secret ? { ...v, value: maskValue() } : v)
-}
-
-function encryptVariables(incoming: Variable[], existing: Variable[]): Variable[] {
-  return incoming.map(v => {
-    if (!v.secret) return v
-    const existingVar = existing.find(e => e.key === v.key)
-    if (existingVar?.secret && v.value === maskValue()) return { ...v, value: existingVar.value }
-    if (isEncrypted(v.value)) return v
-    return { ...v, value: encryptValue(v.value) }
-  })
-}
+import { maskVariables, encryptVariables } from '@/lib/execute/variable-crypto'
 
 export function GET() {
   return withErrorHandler(async () => {

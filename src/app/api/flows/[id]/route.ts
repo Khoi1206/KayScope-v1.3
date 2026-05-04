@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { unlink } from 'fs/promises'
+import path from 'path'
 import { requireSession } from '@/lib/auth/session'
 import { findWorkspaceByOwner } from '@/db/queries/workspaces'
 import { findFlowByIdForWorkspace, updateFlow, deleteFlow } from '@/db/queries/flows'
@@ -45,6 +47,9 @@ export function DELETE(_req: NextRequest, { params }: Params) {
     const flow = await findFlowByIdForWorkspace(id, workspace.id)
     if (!flow) throw new NotFoundError('Flow')
     await deleteFlow(id)
+    // Remove generated spec file if it exists (fire-and-forget, ignore ENOENT)
+    const specFile = path.join(process.cwd(), 'tests', 'e2e', 'generated', `flow-${id}.spec.ts`)
+    unlink(specFile).catch(() => {})
     return NextResponse.json({ success: true })
   })
 }

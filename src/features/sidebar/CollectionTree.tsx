@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { useCollectionStore, type CollectionItem } from '@/store/collection.store'
 import { useRequestStore } from '@/store/request.store'
+import { useExampleStore, type Example } from '@/store/example.store'
 import {
   ChevronRight,
   ChevronDown,
@@ -11,10 +12,13 @@ import {
   Trash2,
   MoreHorizontal,
   Plus,
+  BookOpen,
+  Eye,
 } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import CollectionVarsEditor from '../environment/CollectionVarsEditor'
 import CollectionRunnerModal from '@/features/runner/CollectionRunnerModal'
+import ExampleViewerModal from '@/features/response-viewer/ExampleViewerModal'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-500',
@@ -46,6 +50,7 @@ export default function CollectionTree() {
   const openTab = useRequestStore(s => s.openTab)
   const activeTabId = useRequestStore(s => s.activeTabId)
   const activeTabs = useRequestStore(s => s.tabs)
+  const { examples, fetchExamples, deleteExample } = useExampleStore()
 
   // Auto-expand tree to reveal the active tab's request
   useEffect(() => {
@@ -78,6 +83,18 @@ export default function CollectionTree() {
 
   const [editingVars, setEditingVars] = useState<CollectionItem | null>(null)
   const [runningCollection, setRunningCollection] = useState<CollectionItem | null>(null)
+
+  // Examples expand state (keyed by requestId)
+  const [examplesExpanded, setExamplesExpanded] = useState<Record<string, boolean>>({})
+  const [viewingExample, setViewingExample] = useState<{ example: Example; requestId: string } | null>(null)
+
+  function toggleExamples(requestId: string) {
+    const willExpand = !examplesExpanded[requestId]
+    setExamplesExpanded(s => ({ ...s, [requestId]: willExpand }))
+    if (willExpand && !examples[requestId]) {
+      fetchExamples(requestId)
+    }
+  }
 
   async function handleExpandCollection(colId: string) {
     toggleExpanded(colId)
@@ -203,6 +220,15 @@ export default function CollectionTree() {
                     isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
                     onOpen={() => handleOpenRequest(req.id, col.id)}
                     onDelete={() => handleDeleteRequest(req.id, col.id, req.name)}
+                    examplesExpanded={!!examplesExpanded[req.id]}
+                    onToggleExamples={() => toggleExamples(req.id)}
+                    exampleList={examples[req.id]}
+                    onViewExample={ex => setViewingExample({ example: ex, requestId: req.id })}
+                    onDeleteExample={async exId => {
+                      await deleteExample(exId, req.id)
+                      const remaining = useExampleStore.getState().examples[req.id] ?? []
+                      if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [req.id]: false }))
+                    }}
                   />
                 ))}
 
@@ -221,6 +247,15 @@ export default function CollectionTree() {
                     onDeleteRequest={(rId, rName) => handleDeleteRequest(rId, col.id, rName)}
                     activeTabId={activeTabId}
                     activeTabs={activeTabs}
+                    examplesExpanded={examplesExpanded}
+                    onToggleExamples={toggleExamples}
+                    examples={examples}
+                    onViewExample={(ex, rId) => setViewingExample({ example: ex, requestId: rId })}
+                    onDeleteExample={async (exId, rId) => {
+                      await deleteExample(exId, rId)
+                      const remaining = useExampleStore.getState().examples[rId] ?? []
+                      if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [rId]: false }))
+                    }}
                   />
                 ))}
 
@@ -245,6 +280,13 @@ export default function CollectionTree() {
         collectionId={runningCollection.id}
         collectionName={runningCollection.name}
         onClose={() => setRunningCollection(null)}
+      />
+    )}
+    {viewingExample && (
+      <ExampleViewerModal
+        example={viewingExample.example}
+        requestId={viewingExample.requestId}
+        onClose={() => setViewingExample(null)}
       />
     )}
     </>
@@ -290,45 +332,136 @@ function DropdownMenu({
   )
 }
 
+function ExampleRow({
+  example,
+  onView,
+  onDelete,
+}: {
+  example: Example
+  onView: () => void
+  onDelete: () => void
+}) {
+  const t = useTranslations('examples')
+  return (
+    <div className="group flex w-full items-center rounded hover:bg-th-surface-hover">
+      <button
+        onClick={onView}
+        className="flex flex-1 items-center gap-2 overflow-hidden px-2 py-1 text-xs"
+      >
+        <BookOpen size={10} className="shrink-0 text-th-fg-subtle" />
+        <span className="truncate text-th-fg-muted">{example.name}</span>
+        {example.status != null && (
+          <span className={cn(
+            'shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold tabular-nums',
+            example.status < 300 ? 'text-green-400' : example.status < 400 ? 'text-yellow-400' : 'text-red-400'
+          )}>
+            {example.status}
+          </span>
+        )}
+      </button>
+      <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
+        <button
+          title={t('view')}
+          onClick={e => { e.stopPropagation(); onView() }}
+          className="rounded p-0.5 text-th-fg-muted hover:text-th-fg"
+        >
+          <Eye size={11} />
+        </button>
+        <button
+          title="Delete example"
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RequestRow({
   req,
   isActive,
   onOpen,
   onDelete,
+  examplesExpanded,
+  onToggleExamples,
+  exampleList,
+  onViewExample,
+  onDeleteExample,
 }: {
   req: { id: string; name: string; method: string }
   isActive?: boolean
   onOpen: () => void
   onDelete: () => void
+  examplesExpanded: boolean
+  onToggleExamples: () => void
+  exampleList?: Example[]
+  onViewExample: (ex: Example) => void
+  onDeleteExample: (exId: string) => void
 }) {
+  const t = useTranslations('examples')
+  const hasExamples = exampleList && exampleList.length > 0
+
   return (
-    <div className={cn(
-      'group flex w-full items-center rounded',
-      isActive ? 'bg-th-surface-hover' : 'hover:bg-th-surface-hover'
-    )}>
-      <button
-        onClick={onOpen}
-        className="flex flex-1 items-center gap-2 overflow-hidden px-2 py-1 text-xs"
-      >
-        <span
-          className={cn(
-            'w-12 shrink-0 text-left font-mono font-semibold uppercase',
-            METHOD_COLORS[req.method] ?? 'text-th-fg-muted'
-          )}
-        >
-          {req.method}
-        </span>
-        <span className="truncate text-th-fg">{req.name}</span>
-      </button>
-      <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
+    <div>
+      <div className={cn(
+        'group flex w-full items-center rounded',
+        isActive ? 'bg-th-surface-hover' : 'hover:bg-th-surface-hover'
+      )}>
         <button
-          title="Delete request"
-          onClick={e => { e.stopPropagation(); onDelete() }}
-          className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
+          onClick={onOpen}
+          className="flex flex-1 items-center gap-2 overflow-hidden px-2 py-1 text-xs"
         >
-          <Trash2 size={12} />
+          <span
+            onClick={hasExamples ? e => { e.stopPropagation(); onToggleExamples() } : undefined}
+            title={hasExamples ? t('examples') : undefined}
+            className={cn('w-3 shrink-0', hasExamples ? 'cursor-pointer text-th-fg-muted hover:text-th-fg' : '')}
+          >
+            {hasExamples && (examplesExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />)}
+          </span>
+          <span
+            className={cn(
+              'w-12 shrink-0 text-left font-mono font-semibold uppercase',
+              METHOD_COLORS[req.method] ?? 'text-th-fg-muted'
+            )}
+          >
+            {req.method}
+          </span>
+          <span className="truncate text-th-fg">{req.name}</span>
         </button>
+        <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
+          <button
+            title="Delete request"
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </div>
+
+      {/* Examples sub-list */}
+      {examplesExpanded && (
+        <div className="ml-4 border-l border-th-border/50 pl-2">
+          {exampleList === undefined ? (
+            <p className="py-1 text-[10px] text-th-fg-subtle">Loading…</p>
+          ) : exampleList.length === 0 ? (
+            <p className="py-1 text-[10px] text-th-fg-subtle">{t('noExamples')}</p>
+          ) : (
+            exampleList.map(ex => (
+              <ExampleRow
+                key={ex.id}
+                example={ex}
+                onView={() => onViewExample(ex)}
+                onDelete={() => {
+                  if (confirm(t('confirmDelete'))) onDeleteExample(ex.id)
+                }}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -346,6 +479,11 @@ function FolderRow({
   onDeleteRequest,
   activeTabId,
   activeTabs,
+  examplesExpanded,
+  onToggleExamples,
+  examples,
+  onViewExample,
+  onDeleteExample,
 }: {
   folder: { id: string; name: string; parentFolderId?: string | null }
   allFolders: Array<{ id: string; name: string; parentFolderId?: string | null }>
@@ -359,6 +497,11 @@ function FolderRow({
   onDeleteRequest: (id: string, name: string) => void
   activeTabId: string | null
   activeTabs: Array<{ id: string; requestId?: string }>
+  examplesExpanded: Record<string, boolean>
+  onToggleExamples: (requestId: string) => void
+  examples: Record<string, Example[]>
+  onViewExample: (ex: Example, requestId: string) => void
+  onDeleteExample: (exId: string, requestId: string) => void
 }) {
   const t = useTranslations()
   const isOpen = !!expanded[folder.id]
@@ -401,6 +544,11 @@ function FolderRow({
               isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
               onOpen={() => onOpenRequest(req.id)}
               onDelete={() => onDeleteRequest(req.id, req.name)}
+              examplesExpanded={!!examplesExpanded[req.id]}
+              onToggleExamples={() => onToggleExamples(req.id)}
+              exampleList={examples[req.id]}
+              onViewExample={ex => onViewExample(ex, req.id)}
+              onDeleteExample={exId => onDeleteExample(exId, req.id)}
             />
           ))}
           {childFolders.map(cf => (
@@ -418,6 +566,11 @@ function FolderRow({
               onDeleteRequest={onDeleteRequest}
               activeTabId={activeTabId}
               activeTabs={activeTabs}
+              examplesExpanded={examplesExpanded}
+              onToggleExamples={onToggleExamples}
+              examples={examples}
+              onViewExample={onViewExample}
+              onDeleteExample={onDeleteExample}
             />
           ))}
         </div>

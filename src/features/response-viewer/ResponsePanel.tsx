@@ -2,8 +2,11 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { BookmarkPlus } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import type { ResponseData } from '@/store/request.store'
+import { useRequestStore } from '@/store/request.store'
+import { useExampleStore } from '@/store/example.store'
 import PrettyViewer from './PrettyViewer'
 import RawViewer from './RawViewer'
 import HeadersViewer from './HeadersViewer'
@@ -13,6 +16,8 @@ type ResponseTab = 'pretty' | 'raw' | 'headers' | 'timing'
 
 interface Props {
   response: ResponseData
+  requestId?: string
+  requestName?: string
 }
 
 function statusBadgeClass(status: number) {
@@ -29,9 +34,14 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-export default function ResponsePanel({ response }: Props) {
+export default function ResponsePanel({ response, requestId, requestName }: Props) {
   const t = useTranslations('response')
+  const te = useTranslations('examples')
+  const { createExample } = useExampleStore()
+  const activeTabId = useRequestStore(s => s.activeTabId)
+  const activeSnap = useRequestStore(s => activeTabId ? s.snapshots[activeTabId] : null)
   const [tab, setTab] = useState<ResponseTab>('pretty')
+  const [saving, setSaving] = useState(false)
 
   const TABS: { key: ResponseTab; label: string }[] = [
     { key: 'pretty', label: t('pretty') },
@@ -41,6 +51,7 @@ export default function ResponsePanel({ response }: Props) {
   ]
 
   const contentType = response.headers['content-type'] ?? response.headers['Content-Type'] ?? ''
+  const canSave = response.status > 0
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-th-bg">
@@ -67,6 +78,46 @@ export default function ResponsePanel({ response }: Props) {
           )}
           {response.postScriptError && (
             <span className="rounded-md bg-yellow-500/10 px-2 py-0.5 text-yellow-400" title={response.postScriptError}>⚠ Post-script</span>
+          )}
+          {canSave && (
+            <button
+              onClick={async () => {
+                if (!requestId || saving) return
+                setSaving(true)
+                try {
+                  await createExample(requestId, {
+                    name: requestName?.trim() || `${response.status} ${response.statusText}`.trim(),
+                    status: response.status || undefined,
+                    statusText: response.statusText || undefined,
+                    responseHeaders: Object.keys(response.headers).length > 0 ? response.headers : undefined,
+                    responseBody: response.body ? response.body.slice(0, 51_200) : undefined,
+                    durationMs: response.durationMs || undefined,
+                    size: response.size || undefined,
+                    requestMethod: activeSnap?.method,
+                    requestUrl: activeSnap?.url,
+                    requestParams: activeSnap?.params,
+                    requestHeaders: activeSnap?.headers,
+                    requestBody: activeSnap?.body,
+                    requestAuth: activeSnap?.auth,
+                  })
+                } catch {
+                  // silent
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={!requestId || saving}
+              title={requestId ? te('saveResponse') : te('saveRequestFirst')}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-colors',
+                requestId && !saving
+                  ? 'text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg'
+                  : 'cursor-not-allowed text-th-fg-subtle opacity-50'
+              )}
+            >
+              <BookmarkPlus size={12} />
+              <span>{saving ? '…' : te('saveResponse')}</span>
+            </button>
           )}
         </div>
       </div>
@@ -127,6 +178,7 @@ export default function ResponsePanel({ response }: Props) {
           </div>
         </div>
       )}
+
     </div>
   )
 }

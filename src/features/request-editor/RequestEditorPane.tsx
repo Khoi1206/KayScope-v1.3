@@ -16,6 +16,7 @@ import AuthTab from './AuthTab'
 import ScriptsTab from './ScriptsTab'
 import ResponsePanel from '@/features/response-viewer/ResponsePanel'
 import VariablesPanel from '@/features/variables/VariablesPanel'
+import UnsavedChangesDialog from './UnsavedChangesDialog'
 import { toServerScopes } from '@/core/interpolation/scope'
 
 type EditorTab = 'params' | 'headers' | 'body' | 'auth' | 'scripts' | 'variables'
@@ -57,6 +58,9 @@ export default function RequestEditorPane() {
   const [showTabList, setShowTabList] = useState(false)
   const [tabListSearch, setTabListSearch] = useState('')
   const [maxVisible, setMaxVisible] = useState(7)
+  const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null)
+  const [closeSaving, setCloseSaving] = useState(false)
+  const [closeSaveError, setCloseSaveError] = useState<string | null>(null)
   const handleSaveRef = useRef<() => void>(() => {})
   const tabListRef = useRef<HTMLDivElement>(null)
   const tabBarRef = useRef<HTMLDivElement>(null)
@@ -235,7 +239,17 @@ export default function RequestEditorPane() {
       const freshTab = ft.find(t => t.id === activeTabId)
       const freshSnap = fs[activeTabId]
       if (freshTab?.requestId && freshTab.collectionId && freshSnap) {
-        patchRequest(freshTab.requestId, freshTab.collectionId, { method: freshSnap.method, name: freshTab.title })
+        patchRequest(freshTab.requestId, freshTab.collectionId, {
+          name: freshTab.title,
+          method: freshSnap.method,
+          url: freshSnap.url,
+          params: freshSnap.params,
+          headers: freshSnap.headers,
+          body: freshSnap.body,
+          auth: freshSnap.auth,
+          preRequestScript: freshSnap.preRequestScript,
+          postRequestScript: freshSnap.postRequestScript,
+        })
       }
     } catch {
       // silent
@@ -333,7 +347,15 @@ export default function RequestEditorPane() {
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
                 {tab.isDirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-th-accent" />}
                 <button
-                  onClick={e => { e.stopPropagation(); closeTab(tab.id) }}
+                  onClick={e => {
+                    e.stopPropagation()
+                    if (tab.isDirty) {
+                      setCloseSaveError(null)
+                      setPendingCloseTabId(tab.id)
+                    } else {
+                      closeTab(tab.id)
+                    }
+                  }}
                   className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-th-surface-hover group-hover:opacity-100"
                 >
                   <X size={10} />
@@ -619,7 +641,7 @@ export default function RequestEditorPane() {
             {/* Response panel (bottom ~40%) */}
             <div className="flex flex-col overflow-hidden border-t border-th-border" style={{ flex: '0 0 40%', minHeight: 140 }}>
               {snap.response ? (
-                <ResponsePanel response={snap.response} />
+                <ResponsePanel response={snap.response} requestId={activeTab?.requestId} requestName={activeTab?.title} />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-th-fg-subtle">
                   {t('emptyState')}
@@ -629,6 +651,50 @@ export default function RequestEditorPane() {
           </div>
         </div>
       )}
+
+      {/* Unsaved-changes confirmation dialog */}
+      {pendingCloseTabId && (() => {
+        const pendingTab = tabs.find(t => t.id === pendingCloseTabId)
+        return (
+          <UnsavedChangesDialog
+            tabTitle={pendingTab?.title ?? ''}
+            saving={closeSaving}
+            saveError={closeSaveError}
+            onCancel={() => setPendingCloseTabId(null)}
+            onDiscard={() => { closeTab(pendingCloseTabId); setPendingCloseTabId(null) }}
+            onSave={async () => {
+              setCloseSaving(true)
+              setCloseSaveError(null)
+              try {
+                await saveRequest(pendingCloseTabId)
+                // Sync fresh data into CollectionStore so sidebar reopens with latest values
+                const { tabs: ft, snapshots: fs } = useRequestStore.getState()
+                const ft2 = ft.find(t => t.id === pendingCloseTabId)
+                const fs2 = fs[pendingCloseTabId]
+                if (ft2?.requestId && ft2.collectionId && fs2) {
+                  patchRequest(ft2.requestId, ft2.collectionId, {
+                    name: ft2.title,
+                    method: fs2.method,
+                    url: fs2.url,
+                    params: fs2.params,
+                    headers: fs2.headers,
+                    body: fs2.body,
+                    auth: fs2.auth,
+                    preRequestScript: fs2.preRequestScript,
+                    postRequestScript: fs2.postRequestScript,
+                  })
+                }
+                closeTab(pendingCloseTabId)
+                setPendingCloseTabId(null)
+              } catch (err) {
+                setCloseSaveError(err instanceof Error ? err.message : 'Save failed')
+              } finally {
+                setCloseSaving(false)
+              }
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -43,6 +43,13 @@
     "saving": "Saving…",
     "saved": "Saved",
     "emptyState": "Open or create a request to get started",
+    "unsavedDialog": {
+      "title": "Unsaved changes",
+      "message": "Tab \u201c{name}\u201d has unsaved changes.",
+      "save": "Save",
+      "discard": "Discard",
+      "cancel": "Cancel"
+    },
     "tabs": {
       "params": "Params",
       "headers": "Headers",
@@ -276,6 +283,15 @@
       "passRate": "Pass rate",
       "avgDuration": "Avg duration"
     }
+  },
+  "examples": {
+    "saveResponse": "Save Response",
+    "saveRequestFirst": "Save the request to a collection first",
+    "namePlaceholder": "e.g. 200 OK",
+    "confirmDelete": "Delete this example?",
+    "noExamples": "No saved examples",
+    "view": "View example",
+    "examples": "Examples"
   },
   "confirm": {
     "deleteTitle": "Delete '{name}'?",

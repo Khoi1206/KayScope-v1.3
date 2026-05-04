@@ -73,7 +73,7 @@ interface CollectionStore {
   createRequest: (collectionId: string, name: string, folderId?: string) => Promise<RequestItem>
   deleteRequest: (id: string, collectionId: string) => Promise<void>
   renameRequest: (id: string, collectionId: string, name: string) => void
-  patchRequest: (id: string, collectionId: string, patch: Partial<Pick<RequestItem, 'name' | 'method' | 'url'>>) => void
+  patchRequest: (id: string, collectionId: string, patch: Partial<RequestItem>) => void
 }
 
 export const useCollectionStore = create<CollectionStore>((set, get) => ({
