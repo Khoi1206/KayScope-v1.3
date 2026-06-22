@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { executeSchema } from '@/schemas'
 import { execute } from '@/lib/execute/executor'
 import { ValidationError, UnauthorizedError } from '@/lib/errors'
@@ -10,14 +10,11 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireSession()
 
-    // Resolve workspace from session — never trust the client's workspaceId
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
+    // Validate workspace ownership via X-Workspace-Id header (IDOR-safe)
+    const workspace = await requireActiveWorkspace(req, session.user.id)
 
     const body = await req.json()
-    // Override workspaceId with the real ID from DB
+    // Use the validated workspace ID — not the client-supplied one
     const parsed = executeSchema.safeParse({ ...body, workspaceId: workspace.id })
     if (!parsed.success) {
       throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid request')

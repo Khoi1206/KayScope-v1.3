@@ -1,8 +1,18 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { db, folders } from '../index'
 
 export async function findFoldersByCollection(collectionId: string) {
-  return db.select().from(folders).where(eq(folders.collectionId, collectionId))
+  return db.select().from(folders)
+    .where(eq(folders.collectionId, collectionId))
+    .orderBy(asc(folders.sortOrder), asc(folders.createdAt))
+}
+
+export async function reorderFolders(items: { id: string; sortOrder: number }[]) {
+  await db.transaction(async tx => {
+    for (const { id, sortOrder } of items) {
+      await tx.update(folders).set({ sortOrder }).where(eq(folders.id, id))
+    }
+  })
 }
 
 export async function findFolderById(id: string) {

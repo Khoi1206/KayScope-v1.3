@@ -1,44 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner, updateWorkspace } from '@/db/queries/workspaces'
-import { updateWorkspaceSchema } from '@/schemas'
+import {
+  findAllWorkspacesByOwner,
+  createWorkspace,
+} from '@/db/queries/workspaces'
+import { createWorkspaceSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
-import { NotFoundError, ValidationError } from '@/lib/errors'
-import { maskVariables, encryptVariables } from '@/lib/execute/variable-crypto'
+import { ValidationError } from '@/lib/errors'
 
+/** GET /api/workspaces — list all workspaces owned by the current user */
 export function GET() {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
-    return NextResponse.json({
-      ...workspace,
-      globalVariables: maskVariables(workspace.globalVariables),
-    })
+    const workspaces = await findAllWorkspacesByOwner(session.user.id)
+    return NextResponse.json(workspaces)
   })
 }
 
-export function PUT(req: NextRequest) {
+/** POST /api/workspaces — create a new workspace */
+export function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
     const body = await req.json()
-    const parsed = updateWorkspaceSchema.safeParse(body)
+    const parsed = createWorkspaceSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
 
-    const updateData: Parameters<typeof updateWorkspace>[1] = {}
-    if (parsed.data.name !== undefined) updateData.name = parsed.data.name
-    if (parsed.data.activeEnvironmentId !== undefined) updateData.activeEnvironmentId = parsed.data.activeEnvironmentId
-    if (parsed.data.globalVariables) {
-      updateData.globalVariables = encryptVariables(parsed.data.globalVariables, workspace.globalVariables)
-    }
-
-    const updated = await updateWorkspace(workspace.id, updateData)
-    if (!updated) throw new NotFoundError('Workspace not found')
-    return NextResponse.json({
-      ...updated,
-      globalVariables: maskVariables(updated.globalVariables),
+    const ws = await createWorkspace(session.user.id, parsed.data.name, {
+      type: parsed.data.type,
+      description: parsed.data.description,
     })
+
+    return NextResponse.json(
+      { id: ws.id, name: ws.name, type: ws.type, description: ws.description, createdAt: ws.createdAt },
+      { status: 201 }
+    )
   })
 }

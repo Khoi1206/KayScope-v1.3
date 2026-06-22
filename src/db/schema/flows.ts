@@ -52,6 +52,8 @@ export interface FlowEdge {
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 
+export type FlowBrowser = 'chromium' | 'firefox' | 'webkit'
+
 export const flows = pgTable('flows', {
   id: text('id').primaryKey().$defaultFn(createId),
   workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
@@ -59,6 +61,7 @@ export const flows = pgTable('flows', {
   description: text('description'),
   nodes: jsonb('nodes').$type<FlowNode[]>().notNull().default([]),
   edges: jsonb('edges').$type<FlowEdge[]>().notNull().default([]),
+  browsers: jsonb('browsers').$type<FlowBrowser[]>().notNull().default(['chromium']),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

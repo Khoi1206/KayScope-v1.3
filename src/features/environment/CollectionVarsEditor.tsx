@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { useCollectionStore, type CollectionItem } from '@/store/collection.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Variable {
   key: string
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function CollectionVarsEditor({ collection, onClose }: Props) {
+  useEscapeKey(onClose)
   const tc = useTranslations('common')
   const [variables, setVariables] = useState<Variable[]>(collection.variables ?? [])
   const [saving, setSaving] = useState(false)

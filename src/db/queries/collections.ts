@@ -1,9 +1,19 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { db, collections, folders, requests } from '../index'
 import type { Variable } from '../schema'
 
 export async function findCollectionsByWorkspace(workspaceId: string) {
-  return db.select().from(collections).where(eq(collections.workspaceId, workspaceId))
+  return db.select().from(collections)
+    .where(eq(collections.workspaceId, workspaceId))
+    .orderBy(asc(collections.sortOrder), asc(collections.createdAt))
+}
+
+export async function reorderCollections(items: { id: string; sortOrder: number }[]) {
+  await db.transaction(async tx => {
+    for (const { id, sortOrder } of items) {
+      await tx.update(collections).set({ sortOrder }).where(eq(collections.id, id))
+    }
+  })
 }
 
 export async function findCollectionById(id: string) {

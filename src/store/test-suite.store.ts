@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import type { RunnerResult, RunnerSummary } from '@/lib/execute/runner'
+import { getWorkspaceHeaders } from './workspace.store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
   fetchSuites: async () => {
     set({ loading: true, error: null })
     try {
-      const res = await fetch('/api/test-suites')
+      const res = await fetch('/api/test-suites', { headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to load test suites')
       set({ suites: data as TestSuiteItem[], loading: false })
@@ -111,7 +112,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
 
   fetchRecentRuns: async (suiteId: string) => {
     try {
-      const res = await fetch(`/api/test-suites/${suiteId}/runs?limit=10`)
+      const res = await fetch(`/api/test-suites/${suiteId}/runs?limit=10`, { headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) return
       set(s => ({ recentRuns: { ...s.recentRuns, [suiteId]: data as TestRunSummaryItem[] } }))
@@ -123,7 +124,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
   createSuite: async (data) => {
     const res = await fetch('/api/test-suites', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     const json = await res.json()
@@ -136,7 +137,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
   updateSuite: async (id, data) => {
     const res = await fetch(`/api/test-suites/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     const json = await res.json()
@@ -146,7 +147,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
   },
 
   deleteSuite: async (id) => {
-    const res = await fetch(`/api/test-suites/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/test-suites/${id}`, { method: 'DELETE', headers: getWorkspaceHeaders() })
     if (!res.ok) {
       const json = await res.json()
       throw new Error(json.error ?? 'Failed to delete test suite')
@@ -160,7 +161,7 @@ export const useTestSuiteStore = create<TestSuiteStore>((set, get) => ({
   runSuite: async (suiteId: string) => {
     set({ runningId: suiteId, runResult: null, runRecord: null, runError: null })
     try {
-      const res = await fetch(`/api/test-suites/${suiteId}/run`, { method: 'POST' })
+      const res = await fetch(`/api/test-suites/${suiteId}/run`, { method: 'POST', headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) {
         set({ runError: data.error ?? 'Run failed', runningId: null })

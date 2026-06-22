@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { X, Plus, Trash2, Lock, LockOpen } from 'lucide-react'
 import { useWorkspaceStore, type WorkspaceVariable } from '@/store/workspace.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   onClose: () => void
 }
 
 export default function GlobalVarsEditor({ onClose }: Props) {
+  useEscapeKey(onClose)
   const tc = useTranslations('common')
   const tg = useTranslations('globals')
   const { workspace, updateGlobalVariables } = useWorkspaceStore()

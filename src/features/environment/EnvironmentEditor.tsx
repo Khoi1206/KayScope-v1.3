@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { X, Plus, Trash2, Lock, LockOpen, Eye, EyeOff } from 'lucide-react'
 import { useEnvironmentStore, type EnvironmentItem, type EnvironmentVariable } from '@/store/environment.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   env: EnvironmentItem | null
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function EnvironmentEditor({ env, onClose }: Props) {
+  useEscapeKey(onClose)
   const t = useTranslations('env')
   const tc = useTranslations('common')
   const { createEnvironment, updateEnvironment } = useEnvironmentStore()

@@ -5,8 +5,10 @@ import { X, Upload, Play, Download, ChevronDown, ChevronRight, MoreHorizontal } 
 import { useRunnerStore } from '@/store/runner.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { parseDataFile, detectFileType, type DataRow } from '@/lib/data-parser'
+import { downloadFile } from '@/lib/download'
 import { cn } from '@/components/ui/cn'
 import type { IterationResult, RequestRunResult } from '@/lib/execute/runner'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   collectionId: string
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export default function CollectionRunnerModal({ collectionId, collectionName, onClose }: Props) {
+  useEscapeKey(onClose)
   const { environments, activeEnvironmentId } = useEnvironmentStore()
   const { running, result, error, startRun, reset } = useRunnerStore()
 
@@ -54,7 +57,9 @@ export default function CollectionRunnerModal({ collectionId, collectionName, on
   }
 
   function handleExport(format: 'kayscope' | 'postman' = 'kayscope') {
-    window.open(`/api/collections/${collectionId}/export?format=${format}`, '_blank')
+    const ext = format === 'postman' ? 'postman_collection.json' : 'kayscope.json'
+    downloadFile(`/api/collections/${collectionId}/export?format=${format}`, `${collectionName}.${ext}`)
+      .catch(err => console.error('Export failed', err))
   }
 
   const iterCount = dataRows.length > 0 ? dataRows.length : 1

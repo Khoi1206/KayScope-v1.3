@@ -3,18 +3,23 @@
 import { useEffect, useState } from 'react'
 import { Plus, Play, MoreHorizontal, Pencil, Trash2, BarChart2, Download, Loader2 } from 'lucide-react'
 import { useFlowStore, type FlowItem } from '@/store/flow.store'
+import { ListRowSkeleton } from '@/components/ui/Skeleton'
+import { downloadFile } from '@/lib/download'
 import FlowModal from './FlowModal'
 import FlowRunHistoryPanel from './FlowRunHistoryPanel'
+import ConfirmModal from '@/components/ConfirmModal'
 
 export default function FlowsSection() {
   const { flows, loading, error, runningId, editingFlow, fetchFlows, setActiveFlow, deleteFlow, runFlow, openEdit, closeEdit } = useFlowStore()
   const [historyFlow, setHistoryFlow] = useState<FlowItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<FlowItem | null>(null)
 
   useEffect(() => { fetchFlows() }, [fetchFlows])
 
-  async function handleDelete(flow: FlowItem) {
-    if (!confirm(`Delete flow "${flow.name}"? All run history will also be deleted.`)) return
-    await deleteFlow(flow.id)
+  async function confirmDeleteFlow() {
+    if (!deleteTarget) return
+    await deleteFlow(deleteTarget.id)
+    setDeleteTarget(null)
   }
 
   return (
@@ -31,10 +36,12 @@ export default function FlowsSection() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-1 pb-4">
-        {loading && (
-          <div className="flex items-center gap-2 px-3 py-3 text-xs text-th-fg-muted">
-            <Loader2 size={12} className="animate-spin" /> Loading…
-          </div>
+        {loading && flows.length === 0 && (
+          <>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <ListRowSkeleton key={i} />
+            ))}
+          </>
         )}
         {error && <p className="px-3 py-2 text-xs text-red-400">{error}</p>}
 
@@ -54,7 +61,7 @@ export default function FlowsSection() {
             onOpen={() => setActiveFlow(flow.id)}
             onRun={() => void runFlow(flow.id)}
             onEdit={() => openEdit(flow)}
-            onDelete={() => handleDelete(flow)}
+            onDelete={() => setDeleteTarget(flow)}
             onViewRuns={() => setHistoryFlow(flow)}
           />
         ))}
@@ -66,6 +73,14 @@ export default function FlowsSection() {
 
       {historyFlow && (
         <FlowRunHistoryPanel flow={historyFlow} onClose={() => setHistoryFlow(null)} />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message={`Delete flow "${deleteTarget.name}"? All run history will also be deleted.`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDeleteFlow}
+        />
       )}
     </div>
   )
@@ -135,7 +150,11 @@ function FlowRow({ flow, isRunning, onOpen, onRun, onEdit, onDelete, onViewRuns 
                 <BarChart2 size={11} /> View Runs
               </button>
               <button
-                onClick={() => { setMenuOpen(false); window.open(`/api/flows/${flow.id}/export`, '_blank') }}
+                onClick={() => {
+                  setMenuOpen(false)
+                  downloadFile(`/api/flows/${flow.id}/export`, `${flow.name}.spec.ts`)
+                    .catch(err => console.error('Export failed', err))
+                }}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
               >
                 <Download size={11} /> Export .spec.ts

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload, Download, FlaskConical, Workflow } from 'lucide-react'
+import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload, Download, FlaskConical, Workflow, Search, X } from 'lucide-react'
 import { useUiStore, type SidebarSection } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
@@ -17,8 +17,15 @@ import EnvironmentImportModal from './EnvironmentImportModal'
 import TestsSection from '../tests/TestSuiteList'
 import FlowsSection from '../flows/FlowList'
 import { cn } from '@/components/ui/cn'
+import { EnvRowSkeleton, GlobalVarRowSkeleton } from '@/components/ui/Skeleton'
+import InputModal from '@/components/InputModal'
+import ConfirmModal from '@/components/ConfirmModal'
 
-export default function Sidebar() {
+interface SidebarProps {
+  width?: number
+}
+
+export default function Sidebar({ width }: SidebarProps) {
   const t = useTranslations()
   const { sidebarSection, setSidebarSection } = useUiStore()
   const { fetchWorkspace } = useWorkspaceStore()
@@ -40,7 +47,7 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r border-th-border bg-th-surface">
+    <aside className="flex h-full shrink-0 flex-col border-r border-th-border bg-th-surface" style={{ width: width ?? 256 }}>
       {/* Section tabs */}
       <div className="flex h-9 shrink-0 border-b border-th-border">
         {navItems.map(({ section, icon, label }) => (
@@ -86,12 +93,12 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
   const t = useTranslations()
   const { createCollection } = useCollectionStore()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [query, setQuery] = useState('')
 
-  async function handleCreate() {
-    const name = prompt(t('common.name'))
-    if (name?.trim()) {
-      await createCollection(name.trim())
-    }
+  async function handleCreate(name: string) {
+    await createCollection(name)
+    setShowCreate(false)
   }
 
   return (
@@ -102,7 +109,7 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={handleCreate}
+            onClick={() => setShowCreate(true)}
             title={t('common.newCollection')}
             className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
           >
@@ -138,23 +145,53 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-1 pb-4">
-        <CollectionTree />
+
+      {/* Search bar */}
+      <div className="relative mx-2 mb-1">
+        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-th-fg-subtle pointer-events-none" />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search requests…"
+          className="w-full rounded-md border border-th-border bg-th-input py-1 pl-6 pr-6 text-xs text-th-fg placeholder:text-th-fg-subtle focus:border-th-accent focus:outline-none"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-th-fg-subtle hover:text-th-fg"
+          >
+            <X size={11} />
+          </button>
+        )}
       </div>
+
+      <div className="flex-1 overflow-y-auto px-1 pb-4">
+        <CollectionTree query={query} />
+      </div>
+      {showCreate && (
+        <InputModal
+          title={t('common.newCollection')}
+          confirmLabel={t('common.create')}
+          onCancel={() => setShowCreate(false)}
+          onConfirm={handleCreate}
+        />
+      )}
     </div>
   )
 }
 
 function EnvironmentsSection({ onImport }: { onImport: () => void }) {
   const t = useTranslations()
-  const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment } =
+  const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment, loading: envLoading } =
     useEnvironmentStore()
 
   const [editing, setEditing] = useState<EnvironmentItem | null | undefined>(undefined)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete environment "${name}"?`)) return
-    await deleteEnvironment(id)
+  async function handleDelete() {
+    if (!deleteTarget) return
+    await deleteEnvironment(deleteTarget.id)
+    setDeleteTarget(null)
   }
 
   return (
@@ -182,9 +219,20 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-1">
-        {environments.length === 0 && (
+        {envLoading && environments.length === 0 && (
+          <div className="flex flex-col gap-0.5 pt-1">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <EnvRowSkeleton key={i} />
+            ))}
+          </div>
+        )}
+        {!envLoading && environments.length === 0 && (
           <p className="px-3 py-4 text-xs text-th-fg-subtle">
-            No environments yet. Create one to get started.
+            No environments yet.{' '}
+            <button onClick={() => setEditing(null)} className="text-th-accent hover:underline">
+              Create one
+            </button>{' '}
+            to get started.
           </p>
         )}
         {environments.map(env => (
@@ -199,7 +247,7 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
               onClick={() =>
                 setActiveEnvironment(activeEnvironmentId === env.id ? null : env.id)
               }
-              className="flex flex-1 items-center gap-2.5 overflow-hidden text-left"
+              className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden text-left"
             >
               <div
                 className={cn(
@@ -243,7 +291,7 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
                 <Download size={12} />
               </button>
               <button
-                onClick={() => handleDelete(env.id, env.name)}
+                onClick={() => setDeleteTarget({ id: env.id, name: env.name })}
                 title="Delete"
                 className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-red-400"
               >
@@ -256,6 +304,13 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
 
       {editing !== undefined && (
         <EnvironmentEditor env={editing} onClose={() => setEditing(undefined)} />
+      )}
+      {deleteTarget && (
+        <ConfirmModal
+          message={`Delete environment "${deleteTarget.name}"?`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
       )}
     </div>
   )
@@ -282,7 +337,16 @@ function GlobalsSection() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
-        {(workspace?.globalVariables ?? []).length === 0 ? (
+        {/* Skeleton while workspace is being fetched */}
+        {!workspace && (
+          <div className="flex flex-col gap-1 pt-1">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <GlobalVarRowSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {workspace && (workspace.globalVariables ?? []).filter(v => v.enabled).length === 0 && (
           <p className="py-3 text-xs text-th-fg-subtle">
             No global variables yet.{' '}
             <button
@@ -292,14 +356,16 @@ function GlobalsSection() {
               Add one
             </button>
           </p>
-        ) : (
+        )}
+
+        {workspace && (workspace.globalVariables ?? []).filter(v => v.enabled).length > 0 && (
           <div className="flex flex-col gap-1 pt-1">
-            {workspace!.globalVariables
+            {workspace.globalVariables
               .filter(v => v.enabled)
               .map((v, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-th-surface-hover">
+                <div key={i} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-th-surface-hover">
                   <span className="shrink-0 font-mono text-th-fg">{v.key}</span>
-                  <span className="truncate font-mono text-th-fg-muted">
+                  <span className="min-w-0 truncate font-mono text-th-fg-muted">
                     {v.secret ? '••••••••' : v.value}
                   </span>
                 </div>

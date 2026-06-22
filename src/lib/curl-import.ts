@@ -6,6 +6,7 @@ export interface ParsedCurl {
   body: {
     type: 'none' | 'json' | 'raw' | 'form-data' | 'x-www-form-urlencoded'
     content: string
+    rawType?: 'text' | 'json' | 'javascript' | 'html' | 'xml'
     formData?: Array<{ key: string; value: string; enabled: boolean }>
   }
   auth: {

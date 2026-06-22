@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { runnerSchema } from '@/schemas'
 import { runCollection } from '@/lib/execute/runner'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
 
 export async function POST(req: NextRequest) {
   const session = await requireSession().catch(() => null)
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const workspace = await findWorkspaceByOwner(session.user.id)
+  const workspace = await requireActiveWorkspace(req, session.user.id).catch(() => null)
   if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
   try {

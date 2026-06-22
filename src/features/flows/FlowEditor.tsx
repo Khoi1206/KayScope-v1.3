@@ -94,11 +94,12 @@ export default function FlowEditor() {
   const handleAddNode = useCallback((type: NodeType, label: string) => {
     if (!activeFlowId) return
     const id = crypto.randomUUID()
-    const offset = nodes.length * 20
+    const col = nodes.length % 4
+    const row = Math.floor(nodes.length / 4)
     const newNode: FlowNode = {
       id,
       type: 'action',
-      position: { x: 180 + offset, y: 100 + offset },
+      position: { x: 180 + col * 260, y: 100 + row * 140 },
       data: { type, label },
     }
     setNodes(nds => {
@@ -154,7 +155,7 @@ export default function FlowEditor() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <FlowEditorToolbar flowId={flow.id} flowName={flow.name} runError={runError} />
+      <FlowEditorToolbar flowId={flow.id} flowName={flow.name} browsers={flow.browsers} runError={runError} />
 
       <div className="flex" style={{ height: runResult ? '60%' : '100%', flex: runResult ? 'none' : '1' }}>
         <NodePalette onAdd={handleAddNode} />

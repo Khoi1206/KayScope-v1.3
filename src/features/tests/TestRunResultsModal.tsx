@@ -5,6 +5,7 @@ import { X, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import type { IterationResult, RequestRunResult, RunnerResult, RunnerSummary } from '@/lib/execute/runner'
 import type { TestRunSummaryItem } from '@/store/test-suite.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   suiteName: string
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function TestRunResultsModal({ suiteName, result: initialResult, record, runId, onClose }: Props) {
+  useEscapeKey(onClose)
   const [result, setResult] = useState<RunnerResult | null>(initialResult ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

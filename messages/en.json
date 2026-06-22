@@ -42,13 +42,35 @@
     "save": "Save",
     "saving": "Saving…",
     "saved": "Saved",
-    "emptyState": "Open or create a request to get started",
+    "emptyState": "Click Send to get a response",
     "unsavedDialog": {
       "title": "Unsaved changes",
       "message": "Tab \u201c{name}\u201d has unsaved changes.",
       "save": "Save",
       "discard": "Discard",
       "cancel": "Cancel"
+    },
+    "newTabDialog": {
+      "title": "Save request?",
+      "message": "Save \u201c{name}\u201d before closing?",
+      "save": "Save",
+      "dontSave": "Don't Save",
+      "cancel": "Cancel"
+    },
+    "saveModal": {
+      "title": "Save Request",
+      "name": "Name",
+      "namePlaceholder": "Request name",
+      "collection": "Collection",
+      "folder": "Folder",
+      "noFolder": "No folder (root level)",
+      "noCollections": "No collections — create one first",
+      "loadingFolders": "Loading folders\u2026",
+      "save": "Save",
+      "saving": "Saving\u2026",
+      "cancel": "Cancel",
+      "errorNoCollection": "Please select a collection",
+      "errorSave": "Failed to save request"
     },
     "tabs": {
       "params": "Params",
@@ -79,9 +101,11 @@
     "raw": "Raw",
     "headers": "Headers",
     "timing": "Timing",
+    "console": "Console",
     "error": "Error",
     "hitSend": "Hit Send to get a response",
-    "truncated": "Response truncated (> 50 KB)"
+    "truncated": "Response truncated (> 50 KB)",
+    "noLogs": "No console output"
   },
   "env": {
     "createTitle": "New Environment",
@@ -111,6 +135,7 @@
   },
   "common": {
     "new": "New",
+    "create": "Create",
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
@@ -287,11 +312,28 @@
   "examples": {
     "saveResponse": "Save Response",
     "saveRequestFirst": "Save the request to a collection first",
-    "namePlaceholder": "e.g. 200 OK",
     "confirmDelete": "Delete this example?",
     "noExamples": "No saved examples",
     "view": "View example",
     "examples": "Examples"
+  },
+  "workspace": {
+    "switcher": "Switch Workspace",
+    "new": "New Workspace",
+    "settings": "Workspace Settings",
+    "personal": "Personal",
+    "team": "Team",
+    "namePlaceholder": "My Workspace",
+    "descriptionPlaceholder": "Optional description…",
+    "typeLabel": "Type",
+    "deleteConfirm": "Delete workspace \"{name}\"? All collections, environments, and history inside will be permanently deleted.",
+    "cannotDeleteLast": "You cannot delete your last workspace.",
+    "create": "Create Workspace",
+    "save": "Save Changes",
+    "delete": "Delete Workspace",
+    "editing": "Edit Workspace",
+    "creating": "New Workspace",
+    "name": "Workspace Name"
   },
   "confirm": {
     "deleteTitle": "Delete '{name}'?",

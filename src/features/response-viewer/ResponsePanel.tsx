@@ -12,7 +12,7 @@ import RawViewer from './RawViewer'
 import HeadersViewer from './HeadersViewer'
 import TimingViewer from './TimingViewer'
 
-type ResponseTab = 'pretty' | 'raw' | 'headers' | 'timing'
+type ResponseTab = 'pretty' | 'raw' | 'headers' | 'timing' | 'console'
 
 interface Props {
   response: ResponseData
@@ -43,11 +43,14 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
   const [tab, setTab] = useState<ResponseTab>('pretty')
   const [saving, setSaving] = useState(false)
 
-  const TABS: { key: ResponseTab; label: string }[] = [
+  const hasLogs = (response.logs?.length ?? 0) > 0
+
+  const TABS: { key: ResponseTab; label: string; dot?: boolean }[] = [
     { key: 'pretty', label: t('pretty') },
     { key: 'raw', label: t('raw') },
     { key: 'headers', label: t('headers') },
     { key: 'timing', label: t('timing') },
+    { key: 'console', label: t('console'), dot: hasLogs },
   ]
 
   const contentType = response.headers['content-type'] ?? response.headers['Content-Type'] ?? ''
@@ -124,7 +127,7 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
 
       {/* Tab bar */}
       <div className="flex gap-0 border-b border-th-border bg-th-surface px-3">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, label, dot }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -136,6 +139,7 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
             )}
           >
             {label}
+            {dot && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-th-accent align-middle" />}
           </button>
         ))}
         {/* Test results badge */}
@@ -159,6 +163,29 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
         {tab === 'raw' && <RawViewer body={response.body} />}
         {tab === 'headers' && <HeadersViewer headers={response.headers} />}
         {tab === 'timing' && <TimingViewer response={response} />}
+        {tab === 'console' && (
+          <div className="p-3 font-mono text-xs">
+            {!hasLogs && (
+              <p className="text-th-fg-subtle">{t('noLogs')}</p>
+            )}
+            {response.logs?.map((line, i) => {
+              const isWarn = line.startsWith('[warn] ')
+              const isError = line.startsWith('[error] ')
+              const text = isWarn ? line.slice(7) : isError ? line.slice(8) : line
+              return (
+                <div key={i} className={cn(
+                  'border-b border-th-border/30 py-1 leading-relaxed',
+                  isWarn ? 'text-yellow-400' : isError ? 'text-red-400' : 'text-green-400'
+                )}>
+                  <span className="mr-2 select-none text-th-fg-subtle opacity-50">
+                    {isWarn ? '⚠' : isError ? '✖' : '›'}
+                  </span>
+                  {text}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Tests footer */}

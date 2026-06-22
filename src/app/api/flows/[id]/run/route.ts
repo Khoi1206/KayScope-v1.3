@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, rm } from 'fs/promises'
 import path from 'path'
+import { randomUUID } from 'crypto'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findFlowByIdForWorkspace } from '@/db/queries/flows'
 import { createFlowRun, finalizeFlowRun } from '@/db/queries/flow_runs'
 import { generateFlowSpec } from '@/lib/codegen/flow-playwright'
@@ -13,13 +14,14 @@ import logger from '@/lib/logger'
 
 const execAsync = promisify(exec)
 
-const GENERATED_DIR = path.join(process.cwd(), 'tests', 'e2e', 'generated')
+// Each run gets its own subdirectory so concurrent runs don't pick up each other's specs
+const GENERATED_BASE = path.join(process.cwd(), 'tests', 'e2e', 'generated')
 // Normalize to forward slashes — Windows backslashes break Playwright's CLI path parser
 const BUILDER_CONFIG = path.join(process.cwd(), 'playwright.builder.config.ts').replace(/\\/g, '/')
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
 
   if (process.env.NODE_ENV === 'production') {
@@ -29,7 +31,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const session = await requireSession().catch(() => null)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const workspace = await findWorkspaceByOwner(session.user.id)
+  const workspace = await requireActiveWorkspace(req, session.user.id).catch(() => null)
   if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
   const flow = await findFlowByIdForWorkspace(id, workspace.id)
@@ -42,27 +44,35 @@ export async function POST(_req: NextRequest, { params }: Params) {
     triggeredBy: session.user.id,
   })
 
+  // Each run gets an isolated subdirectory so concurrent runs don't interfere
+  const runDir = path.join(GENERATED_BASE, `run-${randomUUID()}`)
+
   try {
-    // 1. Generate the .spec.ts file
+    // 1. Generate the .spec.ts file inside an isolated run directory
     const specContent = generateFlowSpec({ name: flow.name, nodes: flow.nodes, edges: flow.edges })
 
-    await mkdir(GENERATED_DIR, { recursive: true })
-    const specFile = path.join(GENERATED_DIR, `flow-${flow.id}.spec.ts`)
+    await mkdir(runDir, { recursive: true })
+    const specFile = path.join(runDir, `flow.spec.ts`)
     await writeFile(specFile, specContent, 'utf8')
 
-    // 2. Run Playwright with JSON reporter.
-    // Do NOT pass the spec file as a positional arg — Playwright interprets
-    // positional args as regex patterns, not file paths. Backslash paths on
-    // Windows produce "No tests found". The testDir in the config already
-    // points to tests/e2e/generated so Playwright picks up the file automatically.
+    // 2. Run Playwright against only this run's directory.
+    // Pass --testDir as a CLI override so only this run's spec is picked up,
+    // isolating concurrent runs from each other.
     // Use execAsync (not spawnSync) so test failures (exit code 1) don't throw —
     // we still need stdout to parse the JSON reporter output.
+    const runDirFwd = runDir.replace(/\\/g, '/')
     let stdout = ''
     let stderr = ''
+    const projectFlags = flow.browsers.map(b => `--project=${b}`).join(' ')
     try {
       const result = await execAsync(
-        `npx playwright test --config="${BUILDER_CONFIG}" --reporter=json`,
-        { cwd: process.cwd(), timeout: 120_000, maxBuffer: 20 * 1024 * 1024 }
+        `npx playwright test --config="${BUILDER_CONFIG}" ${projectFlags} --reporter=json`,
+        {
+          cwd: process.cwd(),
+          timeout: 120_000,
+          maxBuffer: 20 * 1024 * 1024,
+          env: { ...process.env, PLAYWRIGHT_TEST_DIR: runDirFwd },
+        }
       )
       stdout = result.stdout
       stderr = result.stderr
@@ -102,17 +112,21 @@ export async function POST(_req: NextRequest, { params }: Params) {
         specs?: Array<{
           title?: string
           tests?: Array<{
+            projectName?: string
             results?: Array<{ status?: string; duration?: number; errors?: Array<{ message?: string }> }>
           }>
         }>
       }
+      // With multiple projects each project gets its own suite copy, so spec.tests.length
+      // is always 1 per suite — use browser count instead to decide whether to suffix.
+      const multiProject = flow.browsers.length > 1
       const collectTests = (suite: PwSuite) => {
         for (const spec of suite.specs ?? []) {
           for (const t of spec.tests ?? []) {
             const result = t.results?.[0]
             tests.push({
               // Title is on spec, not on the inner test object
-              testName: spec.title ?? 'Unknown',
+              testName: multiProject && t.projectName ? `${spec.title ?? 'Unknown'} [${t.projectName}]` : spec.title ?? 'Unknown',
               status: (result?.status as 'passed' | 'failed' | 'skipped' | 'timedOut') ?? 'failed',
               duration: result?.duration ?? 0,
               // Errors is an array in Playwright JSON reporter
@@ -166,6 +180,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const status = testResults.success ? 'passed' : 'failed'
     const finalRun = await finalizeFlowRun(run.id, { testResults, summary, status })
 
+    // Clean up the isolated run directory (best-effort — don't fail the response on error)
+    rm(runDir, { recursive: true, force: true }).catch(e =>
+      logger.warn(e, 'Flow run: failed to clean up temp spec dir')
+    )
+
     return NextResponse.json({ run: finalRun, testResults })
   } catch (err) {
     logger.error(err, 'Flow run error')
@@ -175,6 +194,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
       summary: { total: 0, passed: 0, failed: 0, duration: 0 },
       status: 'errored',
     })
+    // Best-effort cleanup even on error
+    rm(runDir, { recursive: true, force: true }).catch(() => {})
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

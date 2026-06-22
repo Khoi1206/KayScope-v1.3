@@ -2,6 +2,7 @@
 
 // This module is ONLY ever executed on the client (loaded via dynamic ssr:false).
 // Safe to import monaco-editor synchronously here — no Node.js SSR crash.
+import { useEffect, useState } from 'react'
 import Editor, { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import type { EditorProps } from '@monaco-editor/react'
@@ -27,6 +28,16 @@ export default function MonacoEditorInner({
   height = '200px',
   readOnly = false,
 }: Props) {
+  const [theme, setTheme] = useState<'vs-dark' | 'light'>('vs-dark')
+
+  useEffect(() => {
+    const update = () => setTheme(document.documentElement.classList.contains('dark') ? 'vs-dark' : 'light')
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
   const options: EditorOptions = {
     minimap: { enabled: false },
     fontSize: 12,
@@ -44,7 +55,7 @@ export default function MonacoEditorInner({
       height={height}
       language={language}
       value={value}
-      theme="vs-dark"
+      theme={theme}
       options={options}
       loading="Loading editor..."
       onChange={v => onChange?.(v ?? '')}

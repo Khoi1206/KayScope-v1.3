@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findTestSuiteByIdForWorkspace } from '@/db/queries/test_suites'
 import { findTestRunsByTestSuite } from '@/db/queries/test_runs'
 import { testRunsQuerySchema } from '@/schemas'
@@ -13,8 +13,7 @@ export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const suite = await findTestSuiteByIdForWorkspace(id, workspace.id)
     if (!suite) throw new NotFoundError('Test suite')
     const query = testRunsQuerySchema.parse(

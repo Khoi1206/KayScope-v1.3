@@ -1,9 +1,19 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, asc } from 'drizzle-orm'
 import { db, requests } from '../index'
 import type { KeyValuePair, RequestBody, RequestAuth, HttpMethod } from '../schema'
 
 export async function findRequestsByCollection(collectionId: string) {
-  return db.select().from(requests).where(eq(requests.collectionId, collectionId))
+  return db.select().from(requests)
+    .where(eq(requests.collectionId, collectionId))
+    .orderBy(asc(requests.sortOrder), asc(requests.createdAt))
+}
+
+export async function reorderRequests(items: { id: string; sortOrder: number }[]) {
+  await db.transaction(async tx => {
+    for (const { id, sortOrder } of items) {
+      await tx.update(requests).set({ sortOrder }).where(eq(requests.id, id))
+    }
+  })
 }
 
 export async function findRequestById(id: string) {

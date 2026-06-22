@@ -1,4 +1,4 @@
-import { eq, and, lt, desc } from 'drizzle-orm'
+import { eq, and, or, lt, desc } from 'drizzle-orm'
 import { db, history } from '../index'
 
 const HISTORY_CAP_BYTES = 50 * 1024 // 50 KB
@@ -9,14 +9,29 @@ export async function getHistory(
 ) {
   const limit = Math.min(opts.limit ?? 50, 50)
 
-  let query = db
+  // Cursor-based pagination: fetch rows older than the cursor position.
+  // Sort is (createdAt DESC, id DESC) so "before cursor" means
+  //   createdAt < cursor.createdAt  OR
+  //   (createdAt = cursor.createdAt AND id < cursor.id)
+  const whereClause = opts.cursor
+    ? and(
+        eq(history.workspaceId, workspaceId),
+        or(
+          lt(history.createdAt, opts.cursor.createdAt),
+          and(
+            eq(history.createdAt, opts.cursor.createdAt),
+            lt(history.id, opts.cursor.id)
+          )
+        )
+      )
+    : eq(history.workspaceId, workspaceId)
+
+  const rows = await db
     .select()
     .from(history)
-    .where(eq(history.workspaceId, workspaceId))
+    .where(whereClause)
     .orderBy(desc(history.createdAt), desc(history.id))
     .limit(limit + 1)
-
-  const rows = await query
   const hasMore = rows.length > limit
   const items = hasMore ? rows.slice(0, limit) : rows
 

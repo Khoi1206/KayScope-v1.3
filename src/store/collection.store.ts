@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getWorkspaceHeaders } from './workspace.store'
 
 export interface CollectionItem {
   id: string
@@ -74,6 +75,13 @@ interface CollectionStore {
   deleteRequest: (id: string, collectionId: string) => Promise<void>
   renameRequest: (id: string, collectionId: string, name: string) => void
   patchRequest: (id: string, collectionId: string, patch: Partial<RequestItem>) => void
+
+  reorderCollections: (ids: string[]) => Promise<void>
+  reorderFolders: (collectionId: string, ids: string[]) => Promise<void>
+  reorderRequests: (collectionId: string, ids: string[]) => Promise<void>
+
+  /** Reset all loaded data — called when switching workspace */
+  reset: () => void
 }
 
 export const useCollectionStore = create<CollectionStore>((set, get) => ({
@@ -87,7 +95,9 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   fetchCollections: async () => {
     set({ loading: true, error: null })
     try {
-      const res = await fetch('/api/collections')
+      const res = await fetch('/api/collections', {
+        headers: getWorkspaceHeaders(),
+      })
       if (!res.ok) throw new Error('Failed to fetch collections')
       const data: CollectionItem[] = await res.json()
       set({ collections: data, loading: false })
@@ -98,7 +108,9 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
 
   fetchFolders: async (collectionId) => {
     try {
-      const res = await fetch(`/api/folders?collectionId=${collectionId}`)
+      const res = await fetch(`/api/folders?collectionId=${collectionId}`, {
+        headers: getWorkspaceHeaders(),
+      })
       if (!res.ok) return
       const data: FolderItem[] = await res.json()
       set(s => ({ folders: { ...s.folders, [collectionId]: data } }))
@@ -107,7 +119,9 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
 
   fetchRequests: async (collectionId) => {
     try {
-      const res = await fetch(`/api/requests?collectionId=${collectionId}`)
+      const res = await fetch(`/api/requests?collectionId=${collectionId}`, {
+        headers: getWorkspaceHeaders(),
+      })
       if (!res.ok) return
       const data: RequestItem[] = await res.json()
       set(s => ({ requests: { ...s.requests, [collectionId]: data } }))
@@ -120,7 +134,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   createCollection: async (name, description) => {
     const res = await fetch('/api/collections', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ name, description }),
     })
     if (!res.ok) throw new Error('Failed to create collection')
@@ -132,7 +146,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   updateCollection: async (id, data) => {
     const res = await fetch(`/api/collections/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     if (!res.ok) throw new Error('Failed to update collection')
@@ -141,7 +155,10 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   },
 
   deleteCollection: async (id) => {
-    const res = await fetch(`/api/collections/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/collections/${id}`, {
+      method: 'DELETE',
+      headers: getWorkspaceHeaders(),
+    })
     if (!res.ok) throw new Error('Failed to delete collection')
     set(s => ({
       collections: s.collections.filter(c => c.id !== id),
@@ -153,7 +170,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   createFolder: async (collectionId, name, parentFolderId) => {
     const res = await fetch('/api/folders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ collectionId, name, parentFolderId }),
     })
     if (!res.ok) throw new Error('Failed to create folder')
@@ -170,7 +187,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   updateFolder: async (id, collectionId, name) => {
     const res = await fetch(`/api/folders/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ name }),
     })
     if (!res.ok) throw new Error('Failed to update folder')
@@ -184,7 +201,10 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   },
 
   deleteFolder: async (id, collectionId) => {
-    const res = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/folders/${id}`, {
+      method: 'DELETE',
+      headers: getWorkspaceHeaders(),
+    })
     if (!res.ok) throw new Error('Failed to delete folder')
     set(s => ({
       folders: {
@@ -197,7 +217,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   createRequest: async (collectionId, name, folderId) => {
     const res = await fetch('/api/requests', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ collectionId, name, folderId }),
     })
     if (!res.ok) throw new Error('Failed to create request')
@@ -212,7 +232,10 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   },
 
   deleteRequest: async (id, collectionId) => {
-    const res = await fetch(`/api/requests/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/requests/${id}`, {
+      method: 'DELETE',
+      headers: getWorkspaceHeaders(),
+    })
     if (!res.ok) throw new Error('Failed to delete request')
     set(s => ({
       requests: {
@@ -243,4 +266,46 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       },
     }))
   },
+
+  reorderCollections: async (ids) => {
+    const items = ids.map((id, i) => ({ id, sortOrder: i }))
+    set(s => ({ collections: ids.map(id => s.collections.find(c => c.id === id)!).filter(Boolean) }))
+    await fetch('/api/collections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+      body: JSON.stringify({ items }),
+    })
+  },
+
+  reorderFolders: async (collectionId, ids) => {
+    const items = ids.map((id, i) => ({ id, sortOrder: i }))
+    set(s => ({
+      folders: {
+        ...s.folders,
+        [collectionId]: ids.map(id => (s.folders[collectionId] ?? []).find(f => f.id === id)!).filter(Boolean),
+      },
+    }))
+    await fetch('/api/folders', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+      body: JSON.stringify({ collectionId, items }),
+    })
+  },
+
+  reorderRequests: async (collectionId, ids) => {
+    const items = ids.map((id, i) => ({ id, sortOrder: i }))
+    set(s => ({
+      requests: {
+        ...s.requests,
+        [collectionId]: ids.map(id => (s.requests[collectionId] ?? []).find(r => r.id === id)!).filter(Boolean),
+      },
+    }))
+    await fetch('/api/requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+      body: JSON.stringify({ collectionId, items }),
+    })
+  },
+
+  reset: () => set({ collections: [], folders: {}, requests: {}, expanded: {}, error: null }),
 }))

@@ -56,8 +56,12 @@ export function generateFlowSpec(input: GenerateFlowSpecInput): string {
   lines.push(``)
 
   // Each connected component from a root = one test block
+  const usedNames = new Map<string, number>()
   for (const root of roots) {
-    const testName = roots.length === 1 ? name : `${name} — ${root.data.label}`
+    const baseName = roots.length === 1 ? name : `${name} — ${root.data.label}`
+    const count = (usedNames.get(baseName) ?? 0) + 1
+    usedNames.set(baseName, count)
+    const testName = count === 1 ? baseName : `${baseName} (${count})`
     lines.push(`test(${JSON.stringify(testName)}, async ({ page }) => {`)
     const visited = new Set<string>()
     lines.push(...generateNodeCode(root, nodeMap, outgoing, visited, '  '))

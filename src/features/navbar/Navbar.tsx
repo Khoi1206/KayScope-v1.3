@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { LogOut } from 'lucide-react'
 import ThemeSwitcher from '@/components/ThemeSwitcher'
 import LocaleSwitcher from '@/components/LocaleSwitcher'
+import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
 
 interface Props {
   userName: string | null
@@ -19,7 +20,7 @@ export default function Navbar({ userName }: Props) {
       <div className="flex items-center gap-3">
         <span className="text-sm font-bold tracking-tight text-th-accent">KayScope</span>
         <span className="h-4 w-px bg-th-border" />
-        <span className="text-xs text-th-fg-muted">v1.3</span>
+        <WorkspaceSwitcher />
       </div>
 
       {/* Right controls */}

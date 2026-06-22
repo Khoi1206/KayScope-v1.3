@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { getHistory } from '@/db/queries/history'
 import { withErrorHandler } from '@/lib/api/respond'
-import { NotFoundError } from '@/lib/errors'
 
 export function GET(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
 
     const cursorParam = req.nextUrl.searchParams.get('cursor')
-    const cursor = cursorParam ? JSON.parse(decodeURIComponent(cursorParam)) : undefined
+    let cursor: { createdAt: Date; id: string } | undefined
+    if (cursorParam) {
+      try {
+        const raw = JSON.parse(decodeURIComponent(cursorParam))
+        if (raw && typeof raw.id === 'string' && raw.createdAt) {
+          cursor = { id: raw.id, createdAt: new Date(raw.createdAt) }
+        }
+      } catch {
+        // Ignore malformed cursor — treat as first-page request
+      }
+    }
 
     const result = await getHistory(workspace.id, { cursor })
     return NextResponse.json(result)

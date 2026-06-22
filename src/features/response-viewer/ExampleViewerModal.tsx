@@ -11,6 +11,8 @@ import RawViewer from './RawViewer'
 import HeadersViewer from './HeadersViewer'
 import TimingViewer from './TimingViewer'
 import type { ResponseData } from '@/store/request.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import ConfirmModal from '@/components/ConfirmModal'
 
 // ── Method badge colours ───────────────────────────────────────────────────
 
@@ -265,6 +267,9 @@ export default function ExampleViewerModal({ example, requestId, onClose }: Prop
   const [nameDraft, setNameDraft] = useState(example.name)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  useEscapeKey(() => { if (!renaming && !confirmingDelete) onClose() })
 
   const responseData: ResponseData = {
     status: example.status ?? 0,
@@ -294,7 +299,7 @@ export default function ExampleViewerModal({ example, requestId, onClose }: Prop
   }
 
   async function handleDelete() {
-    if (!confirm(t('confirmDelete'))) return
+    setConfirmingDelete(false)
     setDeleting(true)
     try {
       await deleteExample(example.id, requestId)
@@ -326,7 +331,7 @@ export default function ExampleViewerModal({ example, requestId, onClose }: Prop
                 onChange={e => setNameDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleRename()
-                  if (e.key === 'Escape') { setRenaming(false); setNameDraft(example.name) }
+                  if (e.key === 'Escape') { e.stopPropagation(); setRenaming(false); setNameDraft(example.name) }
                 }}
                 className="flex-1 rounded-md border border-th-border bg-th-surface px-2 py-1 text-sm text-th-fg focus:border-th-accent focus:outline-none"
               />
@@ -346,7 +351,7 @@ export default function ExampleViewerModal({ example, requestId, onClose }: Prop
                 className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg">
                 <Pencil size={13} />
               </button>
-              <button onClick={handleDelete} disabled={deleting} title={tc('delete')}
+              <button onClick={() => setConfirmingDelete(true)} disabled={deleting} title={tc('delete')}
                 className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-red-400">
                 <Trash2 size={13} />
               </button>
@@ -386,6 +391,14 @@ export default function ExampleViewerModal({ example, requestId, onClose }: Prop
 
         </div>
       </div>
+
+      {confirmingDelete && (
+        <ConfirmModal
+          message={t('confirmDelete')}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   )
 }

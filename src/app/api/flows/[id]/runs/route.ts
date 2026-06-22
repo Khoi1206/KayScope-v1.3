@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findFlowByIdForWorkspace } from '@/db/queries/flows'
 import { findFlowRunsByFlow } from '@/db/queries/flow_runs'
 import { flowRunsQuerySchema } from '@/schemas'
@@ -13,8 +13,7 @@ export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const flow = await findFlowByIdForWorkspace(id, workspace.id)
     if (!flow) throw new NotFoundError('Flow')
     const query = flowRunsQuerySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams))

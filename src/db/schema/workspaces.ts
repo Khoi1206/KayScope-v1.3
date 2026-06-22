@@ -3,9 +3,13 @@ import { users } from './users'
 import { createId } from '../utils'
 import type { Variable } from './index'
 
+export type WorkspaceType = 'personal' | 'team'
+
 export const workspaces = pgTable('workspaces', {
   id: text('id').primaryKey().$defaultFn(createId),
   name: text('name').notNull(),
+  type: text('type').notNull().default('personal').$type<WorkspaceType>(),
+  description: text('description'),
   ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   globalVariables: jsonb('global_variables').$type<Variable[]>().notNull().default([]),
   activeEnvironmentId: text('active_environment_id'),

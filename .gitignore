@@ -26,7 +26,6 @@ coverage/
 test-results/
 playwright-report/
 playwright/.auth/
-**/__tests__/
 .vitest/
 *.vitest-cache
 
@@ -49,3 +48,14 @@ Thumbs.db
 # ─── Project-specific ────────────────────────────────────────────────────────
 CLAUDE.md
 .claude/
+.codegraph/
+
+# ─── MCP (contains local DB connection string) ──────────────────────────────
+.mcp.json
+
+# ─── User uploads ────────────────────────────────────────────────────────────
+public/uploads/
+
+# ─── Playwright MCP scratch output (screenshots, snapshots, downloads) ──────
+/.playwright-mcp/
+/tests/e2e/generated/*

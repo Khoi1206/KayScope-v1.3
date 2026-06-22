@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Play, MoreHorizontal, Pencil, Trash2, BarChart2, Loader2, Download } from 'lucide-react'
+import { Plus, Play, MoreHorizontal, Pencil, Trash2, BarChart2, Download, Loader2 } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
+import { ListRowSkeleton } from '@/components/ui/Skeleton'
 import { useTestSuiteStore, type TestSuiteItem } from '@/store/test-suite.store'
 import { useCollectionStore } from '@/store/collection.store'
+import { downloadFile } from '@/lib/download'
 import TestSuiteModal from './TestSuiteModal'
 import TestRunResultsModal from './TestRunResultsModal'
 import TestReportPanel from './TestReportPanel'
+import ConfirmModal from '@/components/ConfirmModal'
 
 export default function TestsSection() {
   const {
@@ -20,6 +23,7 @@ export default function TestsSection() {
   const { collections } = useCollectionStore()
 
   const [reportSuite, setReportSuite] = useState<TestSuiteItem | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<TestSuiteItem | null>(null)
 
   useEffect(() => {
     fetchSuites()
@@ -36,9 +40,10 @@ export default function TestsSection() {
     await runSuite(suite.id)
   }
 
-  async function handleDelete(suite: TestSuiteItem) {
-    if (!confirm(`Delete test suite "${suite.name}"? All run history will also be deleted.`)) return
-    await deleteSuite(suite.id)
+  async function confirmDeleteSuite() {
+    if (!deleteTarget) return
+    await deleteSuite(deleteTarget.id)
+    setDeleteTarget(null)
   }
 
   return (
@@ -59,11 +64,12 @@ export default function TestsSection() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-1 pb-4">
-        {loading && (
-          <div className="flex items-center gap-2 px-3 py-3 text-xs text-th-fg-muted">
-            <Loader2 size={12} className="animate-spin" />
-            Loading…
-          </div>
+        {loading && suites.length === 0 && (
+          <>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <ListRowSkeleton key={i} />
+            ))}
+          </>
         )}
         {error && <p className="px-3 py-2 text-xs text-red-400">{error}</p>}
         {runError && <p className="px-3 py-1 text-xs text-red-400">{runError}</p>}
@@ -86,7 +92,7 @@ export default function TestsSection() {
             isRunning={runningId === suite.id}
             onRun={() => handleRun(suite)}
             onEdit={() => openEdit(suite)}
-            onDelete={() => handleDelete(suite)}
+            onDelete={() => setDeleteTarget(suite)}
             onViewRuns={() => setReportSuite(suite)}
           />
         ))}
@@ -120,6 +126,14 @@ export default function TestsSection() {
       {/* Reporting panel */}
       {reportSuite && (
         <TestReportPanel suite={reportSuite} onClose={() => setReportSuite(null)} />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message={`Delete test suite "${deleteTarget.name}"? All run history will also be deleted.`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDeleteSuite}
+        />
       )}
     </div>
   )
@@ -196,7 +210,8 @@ function SuiteRow({ suite, collectionName, isRunning, onRun, onEdit, onDelete, o
               <button
                 onClick={() => {
                   setMenuOpen(false)
-                  window.open(`/api/test-suites/${suite.id}/export`, '_blank')
+                  downloadFile(`/api/test-suites/${suite.id}/export`, `${suite.name}.test.ts`)
+                    .catch(err => console.error('Export failed', err))
                 }}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
               >

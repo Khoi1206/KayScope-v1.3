@@ -9,6 +9,7 @@ import TestSuiteRunsTable from './TestSuiteRunsTable'
 import TestRunResultsModal from './TestRunResultsModal'
 import type { RunnerResult, RunnerSummary } from '@/lib/execute/runner'
 import type { IterationResult } from '@/lib/execute/runner'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   suite: TestSuiteItem
@@ -23,6 +24,9 @@ export default function TestReportPanel({ suite, onClose }: Props) {
   const [viewingRun, setViewingRun] = useState<TestRunSummaryItem | null>(null)
   const [viewingRunFull, setViewingRunFull] = useState<{ result: RunnerResult; record: TestRunSummaryItem } | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+
+  // Nested TestRunResultsModal handles its own Escape — only close this panel when no detail modal is open
+  useEscapeKey(() => { if (!viewingRun && !viewingRunFull) onClose() })
 
   const runs = recentRuns[suite.id] ?? []
   const collectionName = collections.find(c => c.id === suite.collectionId)?.name ?? suite.collectionId

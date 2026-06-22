@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getWorkspaceHeaders } from './workspace.store'
 
 export interface EnvironmentVariable {
   key: string
@@ -28,9 +29,12 @@ interface EnvironmentStore {
   createEnvironment: (name: string, variables?: EnvironmentVariable[]) => Promise<EnvironmentItem>
   updateEnvironment: (id: string, data: Partial<Pick<EnvironmentItem, 'name' | 'variables'>>) => Promise<void>
   deleteEnvironment: (id: string) => Promise<void>
+
+  /** Reset all loaded data — called when switching workspace */
+  reset: () => void
 }
 
-export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
+export const useEnvironmentStore = create<EnvironmentStore>((set) => ({
   environments: [],
   activeEnvironmentId: null,
   loading: false,
@@ -39,7 +43,9 @@ export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
   fetchEnvironments: async () => {
     set({ loading: true, error: null })
     try {
-      const res = await fetch('/api/environments')
+      const res = await fetch('/api/environments', {
+        headers: getWorkspaceHeaders(),
+      })
       if (!res.ok) throw new Error('Failed to fetch environments')
       const data: EnvironmentItem[] = await res.json()
       set({ environments: data, loading: false })
@@ -53,7 +59,7 @@ export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
   createEnvironment: async (name, variables = []) => {
     const res = await fetch('/api/environments', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ name, variables }),
     })
     if (!res.ok) throw new Error('Failed to create environment')
@@ -65,7 +71,7 @@ export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
   updateEnvironment: async (id, data) => {
     const res = await fetch(`/api/environments/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     if (!res.ok) throw new Error('Failed to update environment')
@@ -74,11 +80,16 @@ export const useEnvironmentStore = create<EnvironmentStore>((set, get) => ({
   },
 
   deleteEnvironment: async (id) => {
-    const res = await fetch(`/api/environments/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/environments/${id}`, {
+      method: 'DELETE',
+      headers: getWorkspaceHeaders(),
+    })
     if (!res.ok) throw new Error('Failed to delete environment')
     set(s => ({
       environments: s.environments.filter(e => e.id !== id),
       activeEnvironmentId: s.activeEnvironmentId === id ? null : s.activeEnvironmentId,
     }))
   },
+
+  reset: () => set({ environments: [], activeEnvironmentId: null, error: null }),
 }))

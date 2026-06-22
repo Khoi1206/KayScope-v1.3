@@ -100,6 +100,7 @@ export default function BodyTab({
             onChange={rows => onChange({ ...body, formData: rows })}
             keyPlaceholder="Field"
             valuePlaceholder="Value"
+            showFileType={body.type === 'form-data'}
             localScope={localScope}
             environmentVariables={environmentVariables}
             collectionVariables={collectionVariables}

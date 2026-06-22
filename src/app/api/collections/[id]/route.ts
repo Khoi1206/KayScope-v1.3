@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
-import {
-  findCollectionByIdForWorkspace,
-  updateCollection,
-  deleteCollection,
-} from '@/db/queries/collections'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
+import { findCollectionByIdForWorkspace, updateCollection, deleteCollection } from '@/db/queries/collections'
 import { updateCollectionSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
@@ -13,11 +9,10 @@ import { maskVariables, encryptVariables } from '@/lib/execute/variable-crypto'
 
 type Params = { params: { id: string } }
 
-export function GET(_req: NextRequest, { params }: Params) {
+export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
     if (!col) throw new NotFoundError('Collection not found')
     return NextResponse.json({ ...col, variables: maskVariables(col.variables) })
@@ -27,8 +22,7 @@ export function GET(_req: NextRequest, { params }: Params) {
 export function PUT(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
     if (!col) throw new NotFoundError('Collection not found')
     const body = await req.json()
@@ -48,11 +42,10 @@ export function PUT(req: NextRequest, { params }: Params) {
   })
 }
 
-export function DELETE(_req: NextRequest, { params }: Params) {
+export function DELETE(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
     if (!col) throw new NotFoundError('Collection not found')
     await deleteCollection(params.id)

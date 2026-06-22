@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { Send, Save, ChevronDown } from 'lucide-react'
+import { Send, Save, ChevronDown, Code } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import VarHighlight from '@/components/VarHighlight'
 import VarHoverPopover, { type SaveScope, type VarScope } from '@/components/VarHoverPopover'
@@ -35,6 +35,7 @@ interface Props {
   onSave?: () => void
   isDirty?: boolean
   saving?: boolean
+  isNewRequest?: boolean
   onSetLocalVar?: (name: string, value: string) => void
   onSaveVar?: (scope: SaveScope, name: string, value: string) => Promise<void>
   hasCollection?: boolean
@@ -42,6 +43,7 @@ interface Props {
   collectionName?: string
   environmentName?: string
   onNavigateToVariables?: () => void
+  onShowSnippet?: () => void
 }
 
 function detectScope(
@@ -61,10 +63,11 @@ function detectScope(
 export default function UrlBar({
   method, url, onMethodChange, onUrlChange, onSend, sending,
   localScope = {}, environmentVariables = {}, collectionVariables = {}, globalVariables = {},
-  onSave, isDirty = false, saving = false,
+  onSave, isDirty = false, saving = false, isNewRequest = false,
   onSetLocalVar, onSaveVar,
   hasCollection = false, hasEnvironment = false,
   collectionName, environmentName, onNavigateToVariables,
+  onShowSnippet,
 }: Props) {
   const t = useTranslations('request')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -175,11 +178,22 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
           )}
         </div>
 
+        {onShowSnippet && (
+          <button
+            onClick={onShowSnippet}
+            title="Code snippet"
+            className="flex shrink-0 items-center gap-1.5 rounded border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg"
+          >
+            <Code size={12} />
+            Code
+          </button>
+        )}
+
         {onSave && (
           <button
             onClick={onSave}
-            disabled={!isDirty || saving}
-            title={isDirty ? t('save') : t('saved')}
+            disabled={isNewRequest ? saving : (!isDirty || saving)}
+            title={isNewRequest ? t('save') : (isDirty ? t('save') : t('saved'))}
             className="flex shrink-0 items-center gap-1.5 rounded border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={12} />

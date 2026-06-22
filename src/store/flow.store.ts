@@ -1,7 +1,8 @@
 'use client'
 
 import { create } from 'zustand'
-import type { FlowNode, FlowEdge, PlaywrightRunResult, FlowRunSummary } from '@/db/schema'
+import type { FlowNode, FlowEdge, PlaywrightRunResult, FlowRunSummary, FlowBrowser } from '@/db/schema'
+import { getWorkspaceHeaders } from './workspace.store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export interface FlowItem {
   description?: string | null
   nodes: FlowNode[]
   edges: FlowEdge[]
+  browsers: FlowBrowser[]
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -57,7 +59,7 @@ interface FlowStore {
   // Actions
   fetchFlows: () => Promise<void>
   createFlow: (data: { name: string; description?: string }) => Promise<FlowItem>
-  updateFlow: (id: string, data: Partial<{ name: string; description: string | null }>) => Promise<void>
+  updateFlow: (id: string, data: Partial<{ name: string; description: string | null; browsers: FlowBrowser[] }>) => Promise<void>
   deleteFlow: (id: string) => Promise<void>
   setActiveFlow: (id: string | null) => void
   saveCanvas: (id: string, nodes: FlowNode[], edges: FlowEdge[]) => Promise<void>
@@ -88,7 +90,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   fetchFlows: async () => {
     set({ loading: true, error: null })
     try {
-      const res = await fetch('/api/flows')
+      const res = await fetch('/api/flows', { headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to load flows')
       set({ flows: data as FlowItem[], loading: false })
@@ -100,7 +102,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   createFlow: async (data) => {
     const res = await fetch('/api/flows', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ ...data, nodes: [], edges: [] }),
     })
     const json = await res.json()
@@ -113,7 +115,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   updateFlow: async (id, data) => {
     const res = await fetch(`/api/flows/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     const json = await res.json()
@@ -122,7 +124,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   },
 
   deleteFlow: async (id) => {
-    const res = await fetch(`/api/flows/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/flows/${id}`, { method: 'DELETE', headers: getWorkspaceHeaders() })
     if (!res.ok) {
       const json = await res.json()
       throw new Error(json.error ?? 'Failed to delete flow')
@@ -139,7 +141,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   saveCanvas: async (id, nodes, edges) => {
     await fetch(`/api/flows/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify({ nodes, edges }),
     })
     // Update local store too
@@ -153,7 +155,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   runFlow: async (flowId) => {
     set({ runningId: flowId, runResult: null, runRecord: null, runError: null })
     try {
-      const res = await fetch(`/api/flows/${flowId}/run`, { method: 'POST' })
+      const res = await fetch(`/api/flows/${flowId}/run`, { method: 'POST', headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) {
         set({ runError: data.error ?? 'Run failed', runningId: null })
@@ -177,7 +179,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   openUi: async (flowId) => {
     set({ openingUiId: flowId })
     try {
-      await fetch(`/api/flows/${flowId}/ui`, { method: 'POST' })
+      await fetch(`/api/flows/${flowId}/ui`, { method: 'POST', headers: getWorkspaceHeaders() })
     } finally {
       set({ openingUiId: null })
     }
@@ -187,7 +189,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
 
   fetchRecentRuns: async (flowId) => {
     try {
-      const res = await fetch(`/api/flows/${flowId}/runs?limit=10`)
+      const res = await fetch(`/api/flows/${flowId}/runs?limit=10`, { headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) return
       set(s => ({ recentRuns: { ...s.recentRuns, [flowId]: data as FlowRunSummaryItem[] } }))

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { findRequestById, updateRequest, deleteRequest } from '@/db/queries/requests'
 import { updateRequestSchema } from '@/schemas'
@@ -9,11 +9,10 @@ import { NotFoundError, ValidationError, ForbiddenError } from '@/lib/errors'
 
 type Params = { params: { id: string } }
 
-export function GET(_req: NextRequest, { params }: Params) {
+export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const request = await findRequestById(params.id)
     if (!request) throw new NotFoundError('Request not found')
     const col = await findCollectionByIdForWorkspace(request.collectionId, workspace.id)
@@ -25,8 +24,7 @@ export function GET(_req: NextRequest, { params }: Params) {
 export function PUT(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const request = await findRequestById(params.id)
     if (!request) throw new NotFoundError('Request not found')
     const col = await findCollectionByIdForWorkspace(request.collectionId, workspace.id)
@@ -39,11 +37,10 @@ export function PUT(req: NextRequest, { params }: Params) {
   })
 }
 
-export function DELETE(_req: NextRequest, { params }: Params) {
+export function DELETE(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const request = await findRequestById(params.id)
     if (!request) throw new NotFoundError('Request not found')
     const col = await findCollectionByIdForWorkspace(request.collectionId, workspace.id)

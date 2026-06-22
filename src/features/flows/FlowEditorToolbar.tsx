@@ -1,17 +1,23 @@
 'use client'
 
-import { ArrowLeft, Play, Download, Loader2, Clapperboard } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, Play, Download, Loader2, Clapperboard, Settings } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import { useFlowStore } from '@/store/flow.store'
+import { downloadFile } from '@/lib/download'
+import type { FlowBrowser } from '@/db/schema'
+import FlowSettingsModal from './FlowSettingsModal'
 
 interface Props {
   flowId: string
   flowName: string
+  browsers: FlowBrowser[]
   runError?: string | null
 }
 
-export default function FlowEditorToolbar({ flowId, flowName, runError }: Props) {
+export default function FlowEditorToolbar({ flowId, flowName, browsers, runError }: Props) {
   const { setActiveFlow, runFlow, runningId, openUi, openingUiId } = useFlowStore()
+  const [showSettings, setShowSettings] = useState(false)
   const isRunning = runningId === flowId
   const isOpeningUi = openingUiId === flowId
 
@@ -38,9 +44,21 @@ export default function FlowEditorToolbar({ flowId, flowName, runError }: Props)
         </span>
       )}
 
+      {/* Settings */}
+      <button
+        onClick={() => setShowSettings(true)}
+        title="Flow settings"
+        className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
+      >
+        <Settings size={13} />
+      </button>
+
       {/* Export */}
       <button
-        onClick={() => window.open(`/api/flows/${flowId}/export`, '_blank')}
+        onClick={() => {
+          downloadFile(`/api/flows/${flowId}/export`, `${flowName}.spec.ts`)
+            .catch(err => console.error('Export failed', err))
+        }}
         title="Export as .spec.ts"
         className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg"
       >
@@ -78,6 +96,14 @@ export default function FlowEditorToolbar({ flowId, flowName, runError }: Props)
         {isRunning ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
         {isRunning ? 'Running…' : 'Run Flow'}
       </button>
+
+      {showSettings && (
+        <FlowSettingsModal
+          flowId={flowId}
+          currentBrowsers={browsers}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   )
 }

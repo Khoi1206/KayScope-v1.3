@@ -7,8 +7,8 @@ import { httpClient } from './http-client'
 import { ssrfGuard } from './ssrf-guard'
 import { executeScript, type ScriptContext } from '@/lib/scripting/sandbox'
 import { findWorkspaceById } from '@/db/queries/workspaces'
-import { findEnvironmentById } from '@/db/queries/environments'
-import { findCollectionById } from '@/db/queries/collections'
+import { findEnvironmentByIdForWorkspace } from '@/db/queries/environments'
+import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { findRequestsByCollection } from '@/db/queries/requests'
 import { decryptVariables } from './variable-crypto'
 import { persistMutations } from './variable-persister'
@@ -69,7 +69,12 @@ export async function runCollection(
   input: RunnerInput,
   userId: string
 ): Promise<RunnerResult> {
-  const collection = await findCollectionById(input.collectionId)
+  const [workspace, collection, environment] = await Promise.all([
+    findWorkspaceById(input.workspaceId),
+    findCollectionByIdForWorkspace(input.collectionId, input.workspaceId),
+    input.environmentId ? findEnvironmentByIdForWorkspace(input.environmentId, input.workspaceId) : null,
+  ])
+
   if (!collection) throw new Error(`Collection not found: ${input.collectionId}`)
 
   const allRequests = await findRequestsByCollection(input.collectionId)
@@ -77,11 +82,6 @@ export async function runCollection(
     ...allRequests.filter(r => !r.folderId),
     ...allRequests.filter(r => !!r.folderId),
   ]
-
-  const [workspace, environment] = await Promise.all([
-    findWorkspaceById(input.workspaceId),
-    input.environmentId ? findEnvironmentById(input.environmentId) : null,
-  ])
 
   const globalVars = decryptVariables(workspace?.globalVariables ?? [])
   const envVars = decryptVariables(environment?.variables ?? [])
@@ -268,7 +268,7 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
   const authHeaders = resolveAuthHeaders(req.auth as never, scopes, dynamicVars)
   const userHeaders = buildHeaders(effectiveHeaders, scopes, dynamicVars)
   const mergedHeaders = { ...authHeaders, ...userHeaders }
-  const { body, contentType } = buildRequestBody(effectiveBody as never, scopes, dynamicVars)
+  const { body, contentType } = await buildRequestBody(effectiveBody as never, scopes, dynamicVars)
   if (contentType && !mergedHeaders['content-type'] && !mergedHeaders['Content-Type']) {
     mergedHeaders['Content-Type'] = contentType
   }
@@ -360,6 +360,11 @@ function buildSummary(iterations: IterationResult[]): RunnerSummary {
       totalDurationMs += r.durationMs ?? 0
       passed += r.tests.filter(t => t.passed).length
       failed += r.tests.filter(t => !t.passed).length
+      // An HTTP error status or a post-script failure means this request did not
+      // succeed even if it had no explicit pm.test() assertions — never let it
+      // silently count as neither passed nor failed.
+      if (r.status !== undefined && r.status >= 400) failed++
+      if (r.postScriptError) errored++
     }
   }
 

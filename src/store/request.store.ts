@@ -6,9 +6,12 @@ import { useFlowStore } from '@/store/flow.store'
 
 export interface KVPair {
   key: string
-  value: string
+  value: string           // text value OR uploadId when type === 'file'
   enabled: boolean
   description?: string
+  type?: 'text' | 'file'
+  fileName?: string       // original filename for display and Blob filename
+  fileMimeType?: string   // MIME type for Blob construction
 }
 
 export interface RequestBody {
@@ -103,9 +106,14 @@ interface RequestStore {
 
   // Persistence
   saveRequest: (tabId: string) => Promise<void>
+  attachRequest: (tabId: string, requestId: string, collectionId: string, title?: string) => void
 
   // Convenience
   activeSnapshot: () => TabSnapshot | null
+
+  // Per-workspace tab persistence
+  saveTabsForWorkspace: (workspaceId: string) => void
+  loadTabsForWorkspace: (workspaceId: string) => void
 }
 
 let tabCounter = 0
@@ -124,6 +132,15 @@ export const useRequestStore = create<RequestStore>()(
         if (existing) {
           set({ activeTabId: meta.id })
           return
+        }
+        // A saved request tab may have been created before the DB ID was known
+        // (e.g. saved from a "New Request" tab whose tab.id ≠ requestId).
+        if (meta.requestId) {
+          const byReqId = get().tabs.find(t => t.requestId === meta.requestId)
+          if (byReqId) {
+            set({ activeTabId: byReqId.id })
+            return
+          }
         }
         const title = meta.title ?? `Request ${++tabCounter}`
         const newTab: TabMeta = {
@@ -165,7 +182,7 @@ export const useRequestStore = create<RequestStore>()(
         const triggeredDirty = Object.keys(patch).some(k => DIRTY_FIELDS.has(k))
         set(s => {
           const tab = s.tabs.find(t => t.id === id)
-          const shouldMarkDirty = triggeredDirty && !!tab?.requestId && !tab.isDirty
+          const shouldMarkDirty = triggeredDirty && !tab?.isDirty
           return {
             snapshots: {
               ...s.snapshots,
@@ -200,6 +217,16 @@ export const useRequestStore = create<RequestStore>()(
         }))
       },
 
+      attachRequest: (tabId, requestId, collectionId, title) => {
+        set(s => ({
+          tabs: s.tabs.map(t =>
+            t.id === tabId
+              ? { ...t, requestId, collectionId, isDirty: false, ...(title !== undefined ? { title } : {}) }
+              : t
+          ),
+        }))
+      },
+
       saveRequest: async (tabId) => {
         const tab = get().tabs.find(t => t.id === tabId)
         const snap = get().snapshots[tabId]
@@ -226,6 +253,49 @@ export const useRequestStore = create<RequestStore>()(
       activeSnapshot: () => {
         const id = get().activeTabId
         return id ? (get().snapshots[id] ?? null) : null
+      },
+
+      saveTabsForWorkspace: (workspaceId) => {
+        if (typeof window === 'undefined') return
+        const { tabs, activeTabId, snapshots } = get()
+        const data = {
+          tabs,
+          activeTabId,
+          snapshots: Object.fromEntries(
+            Object.entries(snapshots).map(([id, snap]) => [
+              id,
+              { ...snap, response: null, sending: false },
+            ])
+          ),
+        }
+        localStorage.setItem(`kayscope-tabs-${workspaceId}`, JSON.stringify(data))
+      },
+
+      loadTabsForWorkspace: (workspaceId) => {
+        if (typeof window === 'undefined') return
+        try {
+          // Migration: on first load, seed from the legacy global key if workspace key is empty
+          const legacyKey = 'kayscope-tabs'
+          const wsKey = `kayscope-tabs-${workspaceId}`
+          if (!localStorage.getItem(wsKey)) {
+            const legacy = localStorage.getItem(legacyKey)
+            if (legacy) {
+              localStorage.setItem(wsKey, legacy)
+              localStorage.removeItem(legacyKey)
+            }
+          }
+          const raw = localStorage.getItem(wsKey)
+          if (raw) {
+            const parsed = JSON.parse(raw) as { tabs?: TabMeta[]; activeTabId?: string | null; snapshots?: Record<string, TabSnapshot> }
+            set({
+              tabs: parsed.tabs ?? [],
+              activeTabId: parsed.activeTabId ?? null,
+              snapshots: parsed.snapshots ?? {},
+            })
+            return
+          }
+        } catch { /* ignore */ }
+        set({ tabs: [], activeTabId: null, snapshots: {} })
       },
     }),
     {

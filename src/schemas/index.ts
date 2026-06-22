@@ -11,6 +11,10 @@ const kvPairSchema = z.object({
   value: z.string().default(''),
   enabled: z.boolean().default(true),
   description: z.string().optional(),
+  // Form-data file upload fields — must survive Zod validation so body-builder can act on them
+  type: z.enum(['text', 'file']).optional(),
+  fileName: z.string().max(255).optional(),
+  fileMimeType: z.string().max(255).optional(),
 })
 
 const variableSchema = z.object({
@@ -112,8 +116,22 @@ export const updateEnvironmentSchema = z.object({
 
 // ── Workspaces ─────────────────────────────────────────────────────────────
 
+export const createWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  type: z.enum(['personal', 'team']).default('personal'),
+  description: z.string().trim().max(500).optional(),
+})
+
+export const patchWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  type: z.enum(['personal', 'team']).optional(),
+  description: z.string().trim().max(500).nullable().optional(),
+})
+
 export const updateWorkspaceSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
+  type: z.enum(['personal', 'team']).optional(),
+  description: z.string().trim().max(500).nullable().optional(),
   globalVariables: z.array(variableSchema).max(200).optional(),
   activeEnvironmentId: z.string().nullable().optional(),
 })
@@ -222,6 +240,8 @@ const flowEdgeSchema = z.object({
   }).optional(),
 })
 
+const flowBrowserEnum = z.enum(['chromium', 'firefox', 'webkit'])
+
 export const createFlowSchema = z.object({
   name: nonEmpty.max(200),
   description: z.string().max(1000).optional(),
@@ -234,6 +254,7 @@ export const updateFlowSchema = z.object({
   description: z.string().max(1000).nullable().optional(),
   nodes: z.array(flowNodeSchema).max(200).optional(),
   edges: z.array(flowEdgeSchema).max(500).optional(),
+  browsers: z.array(flowBrowserEnum).min(1).max(3).optional(),
 })
 
 export const flowRunsQuerySchema = z.object({

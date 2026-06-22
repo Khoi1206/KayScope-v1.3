@@ -86,13 +86,17 @@ export async function execute(
 
   // 5. Run pre-request script
   let preScriptError: string | undefined
+  let preLogs: string[] = []
+  let preTests: Array<{ name: string; passed: boolean; error?: string }> = []
   let effectiveHeaders = input.headers ?? []
   let effectiveBody = input.body
   if (input.preRequestScript?.trim()) {
     const preResult = await executeScript(input.preRequestScript, scriptCtx)
     preScriptError = preResult.error
+    preLogs = preResult.logs
+    preTests = preResult.tests
     if (preScriptError) {
-      return { preScriptError, logs: preResult.logs, tests: preResult.tests }
+      return { preScriptError, logs: preLogs, tests: preTests }
     }
     applyMutationsToContext(scriptCtx, preResult.mutations)
     mergeScriptMutations(scopes, preResult.mutations)
@@ -141,7 +145,7 @@ export async function execute(
   const mergedHeaders: Record<string, string> = { ...authHeaders, ...userHeaders }
 
   // 9. Build body
-  const { body, contentType } = buildRequestBody(effectiveBody, scopes, dynamicVars)
+  const { body, contentType } = await buildRequestBody(effectiveBody, scopes, dynamicVars)
   if (contentType && !mergedHeaders['content-type'] && !mergedHeaders['Content-Type']) {
     mergedHeaders['Content-Type'] = contentType
   }
@@ -195,8 +199,8 @@ export async function execute(
     body: httpResponse.body,
     durationMs: httpResponse.durationMs,
     size: httpResponse.size,
-    tests: postTests,
-    logs: postLogs,
+    tests: [...preTests, ...postTests],
+    logs: [...preLogs, ...postLogs],
     preScriptError,
     postScriptError,
   }

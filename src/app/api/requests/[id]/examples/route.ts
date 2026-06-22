@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findRequestById } from '@/db/queries/requests'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { getExamplesByRequestId, createExample } from '@/db/queries/examples'
@@ -11,11 +11,10 @@ import { NotFoundError, ValidationError, ForbiddenError } from '@/lib/errors'
 
 type Params = { params: { id: string } }
 
-export function GET(_req: NextRequest, { params }: Params) {
+export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
 
     const request = await findRequestById(params.id)
     if (!request) throw new NotFoundError('Request not found')
@@ -31,8 +30,7 @@ export function GET(_req: NextRequest, { params }: Params) {
 export function POST(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
 
     const request = await findRequestById(params.id)
     if (!request) throw new NotFoundError('Request not found')

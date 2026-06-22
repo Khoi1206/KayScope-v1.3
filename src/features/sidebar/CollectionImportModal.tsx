@@ -6,6 +6,7 @@ import { parsePostmanCollection } from '@/lib/postman-import'
 import { parseOpenApiDocument } from '@/lib/openapi-import'
 import { useCollectionStore } from '@/store/collection.store'
 import type { ParsedCollection, ParsedFolder, ParsedRequest } from '@/lib/postman-import'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   onClose: () => void
@@ -14,6 +15,7 @@ interface Props {
 type ImportStatus = 'idle' | 'parsed' | 'importing' | 'done' | 'error'
 
 export default function CollectionImportModal({ onClose }: Props) {
+  useEscapeKey(onClose)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<ImportStatus>('idle')
   const [parsed, setParsed] = useState<ParsedCollection | null>(null)

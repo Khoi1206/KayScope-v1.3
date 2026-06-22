@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   tabTitle: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function UnsavedChangesDialog({ tabTitle, saving, saveError, onCancel, onDiscard, onSave }: Props) {
+  useEscapeKey(onCancel)
   const t = useTranslations('request')
 
   return (

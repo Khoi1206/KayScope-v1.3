@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useRequestStore } from '@/store/request.store'
+import { getWorkspaceHeaders } from '@/store/workspace.store'
 import { cn } from '@/components/ui/cn'
+import { HistoryRowSkeleton } from '@/components/ui/Skeleton'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
@@ -55,7 +57,7 @@ export default function HistoryList() {
       const url = cursor
         ? `/api/history?cursor=${encodeURIComponent(JSON.stringify(cursor))}`
         : '/api/history'
-      const res = await fetch(url)
+      const res = await fetch(url, { headers: { ...getWorkspaceHeaders() } })
       if (!res.ok) return
       const data: PageResult = await res.json()
       setItems(prev => cursor ? [...prev, ...data.items] : data.items)
@@ -74,6 +76,17 @@ export default function HistoryList() {
     openTab(
       { id: tabId, title: `${entry.method} ${urlLabel}` },
       { method: entry.method, url: entry.url }
+    )
+  }
+
+  // Show skeleton while the very first page is loading
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex flex-col">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <HistoryRowSkeleton key={i} />
+        ))}
+      </div>
     )
   }
 

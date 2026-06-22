@@ -1,3 +1,6 @@
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import type { RequestBody, KeyValuePair } from '@/db/schema'
 import { interpolate } from '@/core/interpolation/engine'
 import type { ScopeSet } from '@/core/interpolation/scope'
@@ -14,11 +17,11 @@ export interface BuiltBody {
  * Returns { body, contentType } where contentType should be added to headers
  * (unless the user has explicitly set Content-Type in their headers table).
  */
-export function buildRequestBody(
+export async function buildRequestBody(
   reqBody: RequestBody | undefined | null,
   scopes: ScopeSet,
   dynamicVars?: DynamicVarSnapshot
-): BuiltBody {
+): Promise<BuiltBody> {
   if (!reqBody || reqBody.type === 'none') {
     return { body: null, contentType: null }
   }
@@ -40,8 +43,25 @@ export function buildRequestBody(
       for (const pair of (reqBody.formData ?? [])) {
         if (!pair.enabled) continue
         const key = interpolate(pair.key, scopes, dynamicVars)
-        const value = interpolate(pair.value, scopes, dynamicVars)
-        if (key) form.append(key, value)
+        if (!key) continue
+
+        if (pair.type === 'file' && pair.value) {
+          try {
+            // Validate uploadId is a UUID to prevent path traversal before joining
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pair.value)) {
+              continue
+            }
+            const filePath = join(tmpdir(), 'kayscope-' + pair.value)
+            const buffer = await readFile(filePath)
+            const blob = new Blob([buffer], { type: pair.fileMimeType || 'application/octet-stream' })
+            form.append(key, blob, pair.fileName ?? 'upload')
+          } catch {
+            // Temp file missing — skip this part rather than aborting the whole request
+          }
+        } else {
+          const value = interpolate(pair.value, scopes, dynamicVars)
+          form.append(key, value)
+        }
       }
       // Return the FormData object — undici's fetch sets Content-Type with boundary automatically
       return { body: form, contentType: null }

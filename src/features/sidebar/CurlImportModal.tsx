@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { X } from 'lucide-react'
 import { parseCurl } from '@/lib/curl-import'
 import { useRequestStore } from '@/store/request.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   onClose: () => void
@@ -15,6 +16,7 @@ function nanoid() {
 }
 
 export default function CurlImportModal({ onClose }: Props) {
+  useEscapeKey(onClose)
   const ti = useTranslations('import')
   const tc = useTranslations('common')
   const openTab = useRequestStore(s => s.openTab)

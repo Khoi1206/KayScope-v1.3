@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { findFoldersByCollection } from '@/db/queries/folders'
 import { findRequestsByCollection } from '@/db/queries/requests'
@@ -91,7 +91,7 @@ export async function GET(
   const session = await requireSession().catch(() => null)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const workspace = await findWorkspaceByOwner(session.user.id)
+  const workspace = await requireActiveWorkspace(req, session.user.id).catch(() => null)
   if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
   const collection = await findCollectionByIdForWorkspace(params.id, workspace.id)

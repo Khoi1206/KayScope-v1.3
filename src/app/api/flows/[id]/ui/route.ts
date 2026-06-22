@@ -3,7 +3,7 @@ import { exec } from 'child_process'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findFlowByIdForWorkspace } from '@/db/queries/flows'
 import { generateFlowSpec } from '@/lib/codegen/flow-playwright'
 
@@ -13,7 +13,7 @@ const BUILDER_CONFIG = path.join(process.cwd(), 'playwright.builder.config.ts').
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
 
   if (process.env.NODE_ENV === 'production') {
@@ -23,7 +23,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const session = await requireSession().catch(() => null)
   if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
-  const workspace = await findWorkspaceByOwner(session.user.id)
+  const workspace = await requireActiveWorkspace(req, session.user.id).catch(() => null)
   if (!workspace) return NextResponse.json({ ok: false, error: 'Workspace not found' }, { status: 404 })
 
   const flow = await findFlowByIdForWorkspace(id, workspace.id)
@@ -39,10 +39,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     // Launch Playwright UI in a detached process — fire and forget.
     // On Windows, use "cmd /c start /B" to detach the process so the API
     // returns immediately while Playwright opens its Electron window.
+    const projectFlags = flow.browsers.map(b => `--project=${b}`).join(' ')
     const cmd =
       process.platform === 'win32'
-        ? `cmd /c start "" /B npx playwright test --ui --config="${BUILDER_CONFIG}"`
-        : `npx playwright test --ui --config="${BUILDER_CONFIG}"`
+        ? `cmd /c start "" /B npx playwright test --ui ${projectFlags} --config="${BUILDER_CONFIG}"`
+        : `npx playwright test --ui ${projectFlags} --config="${BUILDER_CONFIG}"`
 
     exec(cmd, { cwd: process.cwd(), windowsHide: false })
 

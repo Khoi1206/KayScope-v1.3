@@ -1,6 +1,6 @@
 import { eq, and, desc } from 'drizzle-orm'
 import { db, flows } from '../index'
-import type { FlowNode, FlowEdge } from '../schema'
+import type { FlowNode, FlowEdge, FlowBrowser } from '../schema'
 
 export async function findFlowsByWorkspace(workspaceId: string) {
   return db
@@ -45,6 +45,7 @@ export async function updateFlow(
     description: string | null
     nodes: FlowNode[]
     edges: FlowEdge[]
+    browsers: FlowBrowser[]
   }>
 ) {
   const rows = await db

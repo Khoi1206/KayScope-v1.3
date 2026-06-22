@@ -6,6 +6,7 @@ import { useTestSuiteStore, type TestSuiteItem } from '@/store/test-suite.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { parseDataFile, detectFileType } from '@/lib/data-parser'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   suite: TestSuiteItem | null  // null = create new
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function TestSuiteModal({ suite, defaultCollectionId, onClose }: Props) {
+  useEscapeKey(onClose)
   const isEdit = !!suite
   const { createSuite, updateSuite } = useTestSuiteStore()
   const { collections } = useCollectionStore()

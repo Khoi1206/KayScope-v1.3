@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useFlowStore, type FlowItem } from '@/store/flow.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   flow: FlowItem | null
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function FlowModal({ flow, onClose }: Props) {
+  useEscapeKey(onClose)
   const isEdit = !!flow
   const { createFlow, updateFlow } = useFlowStore()
   const [name, setName] = useState(flow?.name ?? '')

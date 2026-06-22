@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { findFolderById, updateFolder, deleteFolder } from '@/db/queries/folders'
 import { updateFolderSchema } from '@/schemas'
@@ -12,8 +12,7 @@ type Params = { params: { id: string } }
 export function PUT(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const folder = await findFolderById(params.id)
     if (!folder) throw new NotFoundError('Folder not found')
     const col = await findCollectionByIdForWorkspace(folder.collectionId, workspace.id)
@@ -26,11 +25,10 @@ export function PUT(req: NextRequest, { params }: Params) {
   })
 }
 
-export function DELETE(_req: NextRequest, { params }: Params) {
+export function DELETE(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const folder = await findFolderById(params.id)
     if (!folder) throw new NotFoundError('Folder not found')
     const col = await findCollectionByIdForWorkspace(folder.collectionId, workspace.id)

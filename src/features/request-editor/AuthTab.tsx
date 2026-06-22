@@ -130,7 +130,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-th-fg-muted">{label}</label>
-      {children}
+      <div className="rounded-md border border-th-border bg-th-input">{children}</div>
     </div>
   )
 }

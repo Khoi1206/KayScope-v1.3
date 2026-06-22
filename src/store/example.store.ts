@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import type { Example } from '@/db/schema/examples'
 import type { KVPair, RequestBody, RequestAuth } from './request.store'
+import { getWorkspaceHeaders } from './workspace.store'
 
 export type { Example }
 
@@ -39,7 +40,7 @@ export const useExampleStore = create<ExampleStore>((set, get) => ({
     if (get().loading[requestId]) return
     set(s => ({ loading: { ...s.loading, [requestId]: true } }))
     try {
-      const res = await fetch(`/api/requests/${requestId}/examples`)
+      const res = await fetch(`/api/requests/${requestId}/examples`, { headers: getWorkspaceHeaders() })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to load examples')
       set(s => ({
@@ -54,7 +55,7 @@ export const useExampleStore = create<ExampleStore>((set, get) => ({
   createExample: async (requestId, data) => {
     const res = await fetch(`/api/requests/${requestId}/examples`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
       body: JSON.stringify(data),
     })
     const json = await res.json()

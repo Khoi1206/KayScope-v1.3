@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { X, Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useEnvironmentStore } from '@/store/environment.store'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
   onClose: () => void
@@ -48,6 +49,7 @@ function parsePostmanEnvironment(content: string): { env?: ParsedEnv; error?: st
 }
 
 export default function EnvironmentImportModal({ onClose }: Props) {
+  useEscapeKey(onClose)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { createEnvironment } = useEnvironmentStore()
 

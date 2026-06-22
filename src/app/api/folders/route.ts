@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { findWorkspaceByOwner } from '@/db/queries/workspaces'
+import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
-import { findFoldersByCollection, createFolder } from '@/db/queries/folders'
+import { findFoldersByCollection, createFolder, reorderFolders } from '@/db/queries/folders'
 import { createFolderSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { NotFoundError, ValidationError } from '@/lib/errors'
@@ -10,8 +10,7 @@ import { NotFoundError, ValidationError } from '@/lib/errors'
 export function GET(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const collectionId = req.nextUrl.searchParams.get('collectionId')
     if (!collectionId) throw new ValidationError('collectionId query param required')
     const col = await findCollectionByIdForWorkspace(collectionId, workspace.id)
@@ -21,11 +20,26 @@ export function GET(req: NextRequest) {
   })
 }
 
+export function PATCH(req: NextRequest) {
+  return withErrorHandler(async () => {
+    const session = await requireSession()
+    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const body = await req.json() as { collectionId: string; items: { id: string; sortOrder: number }[] }
+    if (!body?.collectionId || !Array.isArray(body?.items)) throw new ValidationError('collectionId and items required')
+    const col = await findCollectionByIdForWorkspace(body.collectionId, workspace.id)
+    if (!col) throw new NotFoundError('Collection not found')
+    const existing = await findFoldersByCollection(body.collectionId)
+    const ownedIds = new Set(existing.map(f => f.id))
+    const safe = body.items.filter(i => ownedIds.has(i.id))
+    await reorderFolders(safe)
+    return NextResponse.json({ ok: true })
+  })
+}
+
 export function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await findWorkspaceByOwner(session.user.id)
-    if (!workspace) throw new NotFoundError('Workspace not found')
+    const workspace = await requireActiveWorkspace(req, session.user.id)
     const body = await req.json()
     const parsed = createFolderSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')

@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import { useFlowStore, type FlowItem, type FlowRunSummaryItem } from '@/store/flow.store'
 import type { PlaywrightRunResult } from '@/db/schema'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 import FlowResultsPanel from './FlowResultsPanel'
 
 interface Props {
@@ -18,6 +19,8 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
 
   const [viewingRun, setViewingRun] = useState<{ result: PlaywrightRunResult; record: FlowRunSummaryItem } | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+
+  useEscapeKey(() => { viewingRun ? setViewingRun(null) : onClose() })
 
   useEffect(() => { fetchRecentRuns(flow.id) }, [flow.id, fetchRecentRuns])
 
