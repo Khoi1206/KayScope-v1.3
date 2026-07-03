@@ -71,6 +71,62 @@ function buildPostmanRequest(r: Request) {
   return item
 }
 
+function extractPath(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).pathname || '/'
+  } catch {
+    // Template URL like {{baseUrl}}/users/{{id}} — strip the leading {{var}} host placeholder
+    const idx = rawUrl.indexOf('}}')
+    const rest = idx !== -1 ? rawUrl.slice(idx + 2) : rawUrl
+    const noQuery = rest.split('?')[0] ?? rest
+    return noQuery.startsWith('/') ? noQuery : `/${noQuery}`
+  }
+}
+
+function buildOpenApiOperation(r: Request) {
+  const pathParams = Array.from(new Set(Array.from(extractPath(r.url).matchAll(/\{(\w+)\}/g)).map(m => m[1])))
+  const queryParams = (r.params ?? []).filter(p => p.enabled).map(p => ({
+    name: p.key, in: 'query', required: false, schema: { type: 'string', example: p.value },
+  }))
+  const headerParams = (r.headers ?? []).filter(h => h.enabled).map(h => ({
+    name: h.key, in: 'header', required: false, schema: { type: 'string', example: h.value },
+  }))
+  const pathParamObjs = pathParams.map(name => ({
+    name, in: 'path', required: true, schema: { type: 'string' },
+  }))
+
+  const operation: Record<string, unknown> = {
+    summary: r.name,
+    parameters: [...pathParamObjs, ...queryParams, ...headerParams],
+    responses: { '200': { description: 'OK' } },
+  }
+
+  const body = r.body
+  if (body && body.type !== 'none' && body.content) {
+    const mediaType = body.type === 'json' || body.type === 'raw' ? 'application/json' : 'application/x-www-form-urlencoded'
+    operation.requestBody = {
+      content: { [mediaType]: { schema: { type: 'string', example: body.content } } },
+    }
+  }
+
+  return operation
+}
+
+function buildOpenApiSpec(collectionName: string, description: string, requests: Request[]) {
+  const paths: Record<string, Record<string, unknown>> = {}
+  for (const r of requests) {
+    const rawPath = extractPath(r.url).replace(/\{\{(\w+)\}\}/g, '{$1}') || '/'
+    const method = r.method.toLowerCase()
+    paths[rawPath] ??= {}
+    paths[rawPath]![method] = buildOpenApiOperation(r)
+  }
+  return {
+    openapi: '3.0.3',
+    info: { title: collectionName, description, version: '1.0.0' },
+    paths,
+  }
+}
+
 function buildPostmanFolder(folderId: string, folders: Folder[], requests: Request[]): Record<string, unknown> {
   const folder = folders.find(f => f.id === folderId)!
   const childFolders = folders.filter(f => f.parentFolderId === folderId)
@@ -124,6 +180,16 @@ export async function GET(
       headers: {
         'Content-Type': 'application/json',
         'Content-Disposition': `attachment; filename="${safeName}.postman_collection.json"`,
+      },
+    })
+  }
+
+  if (format === 'openapi') {
+    const spec = buildOpenApiSpec(collection.name, collection.description ?? '', requests as Request[])
+    return new NextResponse(JSON.stringify(spec, null, 2), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Disposition': `attachment; filename="${safeName}.openapi.json"`,
       },
     })
   }

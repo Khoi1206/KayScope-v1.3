@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
@@ -54,7 +54,7 @@ export default function CurlImportModal({ onClose }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={handleBackdropClick}
     >
-      <div className="flex w-[600px] flex-col rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-[600px] flex-col rounded-xl border border-th-border bg-th-bg shadow-2xl">
         <div className="flex items-center justify-between border-b border-th-border px-4 py-3">
           <h2 className="text-sm font-semibold text-th-fg">{ti('title')}</h2>
           <button

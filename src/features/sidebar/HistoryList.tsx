@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { BookmarkPlus } from 'lucide-react'
 import { useRequestStore } from '@/store/request.store'
 import { getWorkspaceHeaders } from '@/store/workspace.store'
 import { cn } from '@/components/ui/cn'
 import { HistoryRowSkeleton } from '@/components/ui/Skeleton'
+import SaveToCollectionModal from './SaveToCollectionModal'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
@@ -19,6 +21,8 @@ interface HistoryEntry {
   statusText: string | null
   durationMs: number | null
   createdAt: string
+  requestHeaders?: Record<string, string>
+  requestBody?: string | null
 }
 
 interface PageResult {
@@ -50,6 +54,7 @@ export default function HistoryList() {
   const [items, setItems] = useState<HistoryEntry[]>([])
   const [nextCursor, setNextCursor] = useState<{ createdAt: string; id: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [saveTarget, setSaveTarget] = useState<HistoryEntry | null>(null)
 
   async function load(cursor?: typeof nextCursor) {
     setLoading(true)
@@ -97,27 +102,35 @@ export default function HistoryList() {
   return (
     <div className="flex flex-col">
       {items.map(entry => (
-        <button
+        <div
           key={entry.id}
-          onClick={() => handleReplay(entry)}
-          className="group flex flex-col gap-0.5 border-b border-th-border/40 px-3 py-2.5 text-left transition-colors hover:bg-th-surface-hover"
+          className="group flex items-start gap-1 border-b border-th-border/40 px-3 py-2.5 transition-colors hover:bg-th-surface-hover"
         >
-          <div className="flex items-center gap-2">
-            <span className={cn('shrink-0 font-mono text-[11px] font-bold', METHOD_COLORS[entry.method] ?? 'text-th-fg-muted')}>
-              {entry.method}
-            </span>
-            {entry.status && (
-              <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums', statusColor(entry.status))}>
-                {entry.status}
+          <button onClick={() => handleReplay(entry)} className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+            <div className="flex items-center gap-2">
+              <span className={cn('shrink-0 font-mono text-[11px] font-bold', METHOD_COLORS[entry.method] ?? 'text-th-fg-muted')}>
+                {entry.method}
               </span>
-            )}
-            {entry.durationMs && (
-              <span className="ml-auto font-mono text-[11px] text-th-fg-subtle">{entry.durationMs}ms</span>
-            )}
-          </div>
-          <span className="truncate font-mono text-xs text-th-fg-muted">{entry.url}</span>
-          <span className="text-[11px] text-th-fg-subtle">{dayjs(entry.createdAt).fromNow()}</span>
-        </button>
+              {entry.status && (
+                <span className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums', statusColor(entry.status))}>
+                  {entry.status}
+                </span>
+              )}
+              {entry.durationMs && (
+                <span className="ml-auto font-mono text-[11px] text-th-fg-subtle">{entry.durationMs}ms</span>
+              )}
+            </div>
+            <span className="truncate font-mono text-xs text-th-fg-muted">{entry.url}</span>
+            <span className="text-[11px] text-th-fg-subtle">{dayjs(entry.createdAt).fromNow()}</span>
+          </button>
+          <button
+            onClick={() => setSaveTarget(entry)}
+            title="Save to Collection"
+            className="shrink-0 rounded p-1 text-th-fg-muted opacity-0 transition-colors hover:bg-th-surface hover:text-th-accent group-hover:opacity-100"
+          >
+            <BookmarkPlus size={13} />
+          </button>
+        </div>
       ))}
 
       {nextCursor && (
@@ -128,6 +141,18 @@ export default function HistoryList() {
         >
           {loading ? '…' : t('loadMore')}
         </button>
+      )}
+
+      {saveTarget && (
+        <SaveToCollectionModal
+          entry={{
+            method: saveTarget.method,
+            url: saveTarget.url,
+            requestHeaders: saveTarget.requestHeaders ?? {},
+            requestBody: saveTarget.requestBody ?? null,
+          }}
+          onClose={() => setSaveTarget(null)}
+        />
       )}
     </div>
   )

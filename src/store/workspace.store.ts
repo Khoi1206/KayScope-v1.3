@@ -28,6 +28,30 @@ export interface WorkspaceItem extends WorkspaceListItem {
   activeEnvironmentId: string | null
 }
 
+export type WorkspaceRole = 'admin' | 'editor' | 'viewer'
+
+export interface WorkspaceMemberItem {
+  id: string
+  workspaceId: string
+  userId: string
+  role: WorkspaceRole
+  createdAt: string
+  userName: string
+  userEmail: string
+}
+
+export interface ActivityLogItem {
+  id: string
+  workspaceId: string
+  actorId: string
+  action: 'created' | 'deleted' | 'renamed' | 'updated'
+  entityType: 'collection' | 'folder' | 'request' | 'environment' | 'flow' | 'member'
+  entityId: string
+  entityName: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
 // ── Store ──────────────────────────────────────────────────────────────────
 
 interface WorkspaceStore {
@@ -47,6 +71,15 @@ interface WorkspaceStore {
   renameWorkspace: (id: string, data: { name?: string; type?: WorkspaceType; description?: string | null }) => Promise<void>
   deleteWorkspace: (id: string) => Promise<void>
   updateGlobalVariables: (variables: WorkspaceVariable[]) => Promise<void>
+
+  activityLogs: ActivityLogItem[]
+  fetchActivityLogs: (workspaceId: string) => Promise<void>
+
+  members: WorkspaceMemberItem[]
+  fetchMembers: (workspaceId: string) => Promise<void>
+  inviteMember: (workspaceId: string, email: string, role: WorkspaceRole) => Promise<void>
+  updateMemberRole: (workspaceId: string, userId: string, role: WorkspaceRole) => Promise<void>
+  removeMember: (workspaceId: string, userId: string) => Promise<void>
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -57,6 +90,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       activeWorkspaceId: null,
       workspace: null,
       loading: false,
+      activityLogs: [],
+      members: [],
 
       fetchWorkspaces: async () => {
         set({ workspacesLoading: true })
@@ -159,6 +194,62 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         if (!res.ok) throw new Error('Failed to update global variables')
         const updated: WorkspaceItem = await res.json()
         set({ workspace: updated })
+      },
+
+      fetchActivityLogs: async (workspaceId) => {
+        try {
+          const res = await fetch(`/api/workspaces/${workspaceId}/activity`, { headers: getWorkspaceHeaders() })
+          const data = await res.json()
+          if (!res.ok) return
+          set({ activityLogs: data as ActivityLogItem[] })
+        } catch {
+          // Non-critical; silently ignore
+        }
+      },
+
+      fetchMembers: async (workspaceId) => {
+        try {
+          const res = await fetch(`/api/workspaces/${workspaceId}/members`, { headers: getWorkspaceHeaders() })
+          const data = await res.json()
+          if (!res.ok) return
+          set({ members: data as WorkspaceMemberItem[] })
+        } catch {
+          // Non-critical; silently ignore
+        }
+      },
+
+      inviteMember: async (workspaceId, email, role) => {
+        const res = await fetch(`/api/workspaces/${workspaceId}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+          body: JSON.stringify({ email, role }),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? 'Failed to invite member')
+        await get().fetchMembers(workspaceId)
+      },
+
+      updateMemberRole: async (workspaceId, userId, role) => {
+        const res = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+          body: JSON.stringify({ role }),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? 'Failed to update member role')
+        set(s => ({ members: s.members.map(m => m.userId === userId ? { ...m, role } : m) }))
+      },
+
+      removeMember: async (workspaceId, userId) => {
+        const res = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+          method: 'DELETE',
+          headers: getWorkspaceHeaders(),
+        })
+        if (!res.ok) {
+          const json = await res.json()
+          throw new Error(json.error ?? 'Failed to remove member')
+        }
+        set(s => ({ members: s.members.filter(m => m.userId !== userId) }))
       },
     }),
     {

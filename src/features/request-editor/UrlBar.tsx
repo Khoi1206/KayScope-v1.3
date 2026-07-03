@@ -114,14 +114,14 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
   function cancelClose() { clearTimeout(closeTimer.current) }
 
   return (
-    <div className="border-b border-th-border bg-th-surface">
+    <div className="border-b border-th-border bg-th-bg">
       <div className="flex items-center gap-2 px-3 py-1.5">
         {/* Method selector */}
         <div ref={methodRef} className="relative shrink-0">
           <button
             onClick={() => setMethodOpen(v => !v)}
             className={cn(
-              'flex items-center gap-1 rounded border border-th-border bg-th-input px-2 py-1 text-xs font-bold transition-colors hover:border-th-fg-subtle focus:outline-none',
+              'flex items-center gap-1 rounded-lg border border-th-border bg-th-input px-2 py-1 text-xs font-bold transition-colors hover:border-th-fg-subtle focus:outline-none',
               METHOD_COLORS[method] ?? 'text-th-fg-muted'
             )}
           >
@@ -129,7 +129,7 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
             <ChevronDown size={11} className="text-th-fg-subtle" />
           </button>
           {methodOpen && (
-            <div className="absolute left-0 top-full z-50 mt-0.5 min-w-[96px] rounded border border-th-border bg-th-raised py-1 shadow-lg">
+            <div className="absolute left-0 top-full z-50 mt-1 min-w-[96px] rounded-xl border border-th-border bg-th-raised py-1 shadow-xl">
               {HTTP_METHODS.map(m => (
                 <button
                   key={m}
@@ -156,7 +156,7 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
             onScroll={e => setScrollLeft((e.target as HTMLInputElement).scrollLeft)}
             placeholder="https://api.example.com/{{endpoint}}"
             className={cn(
-              'w-full rounded border bg-th-input px-3 py-1 font-mono text-sm placeholder:text-th-fg-subtle focus:outline-none focus:ring-1',
+              'w-full rounded-lg border bg-th-input px-3 py-1 font-mono text-sm placeholder:text-th-fg-subtle focus:outline-none focus:ring-1',
               hasUnresolved
                 ? 'border-yellow-500/40 focus:ring-yellow-500/40'
                 : 'border-th-border focus:border-th-accent focus:ring-th-accent/50'
@@ -182,7 +182,7 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
           <button
             onClick={onShowSnippet}
             title="Code snippet"
-            className="flex shrink-0 items-center gap-1.5 rounded border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg"
           >
             <Code size={12} />
             Code
@@ -193,8 +193,8 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
           <button
             onClick={onSave}
             disabled={isNewRequest ? saving : (!isDirty || saving)}
-            title={isNewRequest ? t('save') : (isDirty ? t('save') : t('saved'))}
-            className="flex shrink-0 items-center gap-1.5 rounded border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg disabled:cursor-not-allowed disabled:opacity-40"
+            title={isNewRequest ? `${t('save')} (Ctrl+S)` : (isDirty ? `${t('save')} (Ctrl+S)` : t('saved'))}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-th-border px-2.5 py-1 text-xs font-medium text-th-fg-muted transition-colors hover:border-th-accent hover:text-th-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Save size={12} />
             {saving ? t('saving') : t('save')}
@@ -204,7 +204,8 @@ const [hovered, setHovered] = useState<{ name: string; rect: DOMRect } | null>(n
         <button
           onClick={onSend}
           disabled={sendDisabled}
-          className="flex shrink-0 items-center gap-1.5 rounded bg-th-accent px-4 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          title={`${t('send')} (Ctrl+Enter)`}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-th-accent px-4 py-1 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send size={12} />
           {sending ? t('sending') : t('send')}

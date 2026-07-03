@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { cn } from './ui/cn'
@@ -136,7 +136,7 @@ export default function VarHoverPopover({
           </button>
 
           {dropdownOpen && (
-            <div className="absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-th-border bg-th-bg py-1 shadow-xl">
+            <div className="absolute bottom-full left-0 mb-1 w-56 rounded-xl border border-th-border bg-th-bg py-1 shadow-xl">
               {SCOPE_ITEMS.map(item => (
                 <button
                   key={item.key}

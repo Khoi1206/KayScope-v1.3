@@ -1,9 +1,15 @@
 import type { FlowNode, FlowEdge, FlowNodeData } from '@/db/schema/flows'
+import { interpolate } from '@/core/interpolation/engine'
+import type { ScopeSet } from '@/core/interpolation/scope'
+import type { DynamicVarSnapshot } from '@/core/interpolation/dynamic-vars'
 
 export interface GenerateFlowSpecInput {
   name: string
   nodes: FlowNode[]
   edges: FlowEdge[]
+  /** When provided, {{variable}} tokens in node fields are resolved before codegen. */
+  scopes?: ScopeSet
+  dynamicVars?: DynamicVarSnapshot
 }
 
 /**
@@ -13,7 +19,7 @@ export interface GenerateFlowSpecInput {
  * generate if/else blocks. Max 2 outgoing edges per node.
  */
 export function generateFlowSpec(input: GenerateFlowSpecInput): string {
-  const { name, nodes, edges } = input
+  const { name, nodes, edges, scopes, dynamicVars } = input
 
   if (nodes.length === 0) throw new Error('Flow has no nodes')
 
@@ -62,9 +68,12 @@ export function generateFlowSpec(input: GenerateFlowSpecInput): string {
     const count = (usedNames.get(baseName) ?? 0) + 1
     usedNames.set(baseName, count)
     const testName = count === 1 ? baseName : `${baseName} (${count})`
-    lines.push(`test(${JSON.stringify(testName)}, async ({ page }) => {`)
+    // `context` is always destructured — only used when a click_new_tab node is present,
+    // but an unused destructured fixture is valid JS and costs nothing at runtime.
+    lines.push(`test(${JSON.stringify(testName)}, async ({ page, context }) => {`)
     const visited = new Set<string>()
-    lines.push(...generateNodeCode(root, nodeMap, outgoing, visited, '  '))
+    const tabState = { count: 0 }
+    lines.push(...generateNodeCode(root, nodeMap, outgoing, visited, '  ', scopes, dynamicVars, 'page', tabState))
     lines.push(`})`)
     lines.push(``)
   }
@@ -96,17 +105,37 @@ function generateNodeCode(
   nodeMap: Map<string, FlowNode>,
   outgoing: Map<string, FlowEdge[]>,
   visited: Set<string>,
-  indent: string
+  indent: string,
+  scopes: ScopeSet | undefined,
+  dynamicVars: DynamicVarSnapshot | undefined,
+  pageVar: string,
+  tabState: { count: number }
 ): string[] {
   if (visited.has(node.id)) return []
   visited.add(node.id)
 
   const lines: string[] = []
+  const resolved = resolveNodeData(node.data, scopes, dynamicVars)
 
-  // Emit node action
-  lines.push(`${indent}// ${node.data.label}`)
-  for (const line of nodeDataToCode(node.data)) {
-    lines.push(`${indent}${line}`)
+  // Emit node action. click_new_tab is special-cased here (not in nodeDataToCode)
+  // because it declares a new page variable that its descendants must use.
+  let nextPageVar = pageVar
+  lines.push(`${indent}// ${resolved.label}`)
+  if (resolved.type === 'click_new_tab') {
+    tabState.count += 1
+    nextPageVar = `page${tabState.count}`
+    const root = frameRoot(pageVar, resolved)
+    const loc = locatorExpr(resolved, root, `${root}.getByText(\`${esc(resolved.text ?? '')}\`)`)
+    const clickExpr = `${loc}${hasOverride(resolved) ? '' : '.first()'}.click()`
+    lines.push(`${indent}const [${nextPageVar}] = await Promise.all([`)
+    lines.push(`${indent}  context.waitForEvent('page'),`)
+    lines.push(`${indent}  ${clickExpr},`)
+    lines.push(`${indent}])`)
+    lines.push(`${indent}await ${nextPageVar}.waitForLoadState()`)
+  } else {
+    for (const line of nodeDataToCode(resolved, pageVar)) {
+      lines.push(`${indent}${line}`)
+    }
   }
 
   const edges = outgoing.get(node.id) ?? []
@@ -120,7 +149,7 @@ function generateNodeCode(
     // Linear continuation
     const next = nodeMap.get(edges[0]!.target)
     if (next && !visited.has(next.id)) {
-      lines.push(...generateNodeCode(next, nodeMap, outgoing, visited, indent))
+      lines.push(...generateNodeCode(next, nodeMap, outgoing, visited, indent, scopes, dynamicVars, nextPageVar, tabState))
     }
     return lines
   }
@@ -131,61 +160,180 @@ function generateNodeCode(
     ?? edges[0]!
   const elseEdge = edges.find(e => e !== ifEdge) ?? edges[1]!
 
-  const condText = esc(ifEdge.data?.conditionText ?? ifEdge.label ?? 'element')
+  const rawCondText = ifEdge.data?.conditionText ?? ifEdge.label ?? 'element'
+  const condText = esc(scopes ? interpolate(rawCondText, scopes, dynamicVars) : rawCondText)
 
-  lines.push(`${indent}if (await page.getByText(\`${condText}\`).isVisible()) {`)
+  lines.push(`${indent}if (await ${nextPageVar}.getByText(\`${condText}\`).isVisible()) {`)
   const ifNode = nodeMap.get(ifEdge.target)
   if (ifNode && !visited.has(ifNode.id)) {
     const ifVisited = new Set(visited)
-    lines.push(...generateNodeCode(ifNode, nodeMap, outgoing, ifVisited, indent + '  '))
+    lines.push(...generateNodeCode(ifNode, nodeMap, outgoing, ifVisited, indent + '  ', scopes, dynamicVars, nextPageVar, tabState))
   }
   lines.push(`${indent}} else {`)
   const elseNode = nodeMap.get(elseEdge.target)
   if (elseNode && !visited.has(elseNode.id)) {
     const elseVisited = new Set(visited)
-    lines.push(...generateNodeCode(elseNode, nodeMap, outgoing, elseVisited, indent + '  '))
+    lines.push(...generateNodeCode(elseNode, nodeMap, outgoing, elseVisited, indent + '  ', scopes, dynamicVars, nextPageVar, tabState))
   }
   lines.push(`${indent}}`)
 
   return lines
 }
 
-function nodeDataToCode(d: FlowNodeData): string[] {
+/** Fields eligible for {{variable}} interpolation before codegen. Excludes numeric/enum fields. */
+const INTERPOLATABLE_FIELDS = [
+  'url', 'text', 'roleName', 'placeholder', 'value', 'labelText',
+  'pattern', 'title', 'option', 'testId', 'selector', 'screenshotName',
+  'frameSelector', 'key', 'promptText', 'filePath', 'targetSelector',
+  'apiUrlPattern',
+] as const satisfies readonly (keyof FlowNodeData)[]
+
+function resolveNodeData(d: FlowNodeData, scopes?: ScopeSet, dynamicVars?: DynamicVarSnapshot): FlowNodeData {
+  if (!scopes) return d
+  const resolved: FlowNodeData = { ...d }
+  for (const field of INTERPOLATABLE_FIELDS) {
+    const value = d[field]
+    if (typeof value === 'string' && value.includes('{{')) {
+      resolved[field] = interpolate(value, scopes, dynamicVars)
+    }
+  }
+  return resolved
+}
+
+/**
+ * Resolves the locator root for a node: `pageVar` itself, or
+ * `pageVar.frameLocator(frameSelector)` when the node targets an iframe.
+ * Not used for page-level calls (goto, waitForTimeout, screenshot, keyboard, dialogs).
+ */
+function frameRoot(pageVar: string, d: FlowNodeData): string {
+  return d.frameSelector ? `${pageVar}.frameLocator(\`${esc(d.frameSelector)}\`)` : pageVar
+}
+
+/**
+ * Resolves the Playwright locator expression for a node, honoring the
+ * testId/selector overrides. Precedence: testId > selector > nativeLocator.
+ * `nativeLocator` is the strategy-specific fallback (getByText, getByRole, ...).
+ */
+function locatorExpr(d: FlowNodeData, root: string, nativeLocator: string): string {
+  if (d.testId) return `${root}.getByTestId(\`${esc(d.testId)}\`)`
+  if (d.selector) return `${root}.locator(\`${esc(d.selector)}\`)`
+  return nativeLocator
+}
+
+/** True when the node has an explicit testId/selector override (disambiguates without .first()). */
+function hasOverride(d: FlowNodeData): boolean {
+  return Boolean(d.testId || d.selector)
+}
+
+function nodeDataToCode(d: FlowNodeData, pageVar: string): string[] {
+  const root = frameRoot(pageVar, d)
   switch (d.type) {
     case 'navigate':
-      return [`await page.goto(\`${esc(d.url ?? '')}\`)`]
-    case 'click_text':
-      return [`await page.getByText(\`${esc(d.text ?? '')}\`).first().click()`]
-    case 'click_role':
-      return [`await page.getByRole('${d.role ?? 'button'}', { name: \`${esc(d.roleName ?? '')}\` }).click()`]
-    case 'click_placeholder':
-      return [`await page.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`).click()`]
-    case 'click_title':
-      return [`await page.getByTitle(\`${esc(d.title ?? '')}\`).click()`]
-    case 'hover_text':
-      return [`await page.getByText(\`${esc(d.text ?? '')}\`).hover()`]
-    case 'fill_placeholder':
-      return [`await page.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`).fill(\`${esc(d.value ?? '')}\`)`]
-    case 'fill_label':
-      return [`await page.getByLabel(\`${esc(d.labelText ?? '')}\`).fill(\`${esc(d.value ?? '')}\`)`]
-    case 'select_option':
-      return [`await page.getByLabel(\`${esc(d.labelText ?? '')}\`).selectOption(\`${esc(d.option ?? '')}\`)`]
+      return [`await ${pageVar}.goto(\`${esc(d.url ?? '')}\`)`]
+    case 'click_text': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      return [`await ${loc}${hasOverride(d) ? '' : '.first()'}.click()`]
+    }
+    case 'click_role': {
+      const loc = locatorExpr(d, root, `${root}.getByRole('${d.role ?? 'button'}', { name: \`${esc(d.roleName ?? '')}\` })`)
+      return [`await ${loc}.click()`]
+    }
+    case 'click_placeholder': {
+      const loc = locatorExpr(d, root, `${root}.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`)`)
+      return [`await ${loc}.click()`]
+    }
+    case 'click_title': {
+      const loc = locatorExpr(d, root, `${root}.getByTitle(\`${esc(d.title ?? '')}\`)`)
+      return [`await ${loc}.click()`]
+    }
+    case 'hover_text': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      return [`await ${loc}${hasOverride(d) ? '' : '.first()'}.hover()`]
+    }
+    case 'fill_placeholder': {
+      const loc = locatorExpr(d, root, `${root}.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`)`)
+      return [`await ${loc}.fill(\`${esc(d.value ?? '')}\`)`]
+    }
+    case 'fill_label': {
+      const loc = locatorExpr(d, root, `${root}.getByLabel(\`${esc(d.labelText ?? '')}\`)`)
+      return [`await ${loc}.fill(\`${esc(d.value ?? '')}\`)`]
+    }
+    case 'select_option': {
+      const loc = locatorExpr(d, root, `${root}.getByLabel(\`${esc(d.labelText ?? '')}\`)`)
+      return [`await ${loc}.selectOption(\`${esc(d.option ?? '')}\`)`]
+    }
     case 'assert_url':
-      return [`await expect(page).toHaveURL(/${esc(d.pattern ?? '')}/, { timeout: 15_000 })`]
-    case 'assert_visible':
-      return [`await expect(page.getByText(\`${esc(d.text ?? '')}\`)).toBeVisible()`]
-    case 'assert_not_visible':
-      return [`await expect(page.getByText(\`${esc(d.text ?? '')}\`)).not.toBeVisible()`]
-    case 'assert_value':
-      return [`await expect(page.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`)).toHaveValue(\`${esc(d.value ?? '')}\`)`]
+      return [`await expect(${pageVar}).toHaveURL(/${esc(d.pattern ?? '')}/, { timeout: 15_000 })`]
+    case 'assert_visible': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      return [`await expect(${loc}${hasOverride(d) ? '' : '.first()'}).toBeVisible()`]
+    }
+    case 'assert_not_visible': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      return [`await expect(${loc}${hasOverride(d) ? '' : '.first()'}).not.toBeVisible()`]
+    }
+    case 'assert_value': {
+      const loc = locatorExpr(d, root, `${root}.getByPlaceholder(\`${esc(d.placeholder ?? '')}\`)`)
+      return [`await expect(${loc}).toHaveValue(\`${esc(d.value ?? '')}\`)`]
+    }
+    case 'assert_api_response': {
+      // Braced block so `response` doesn't leak into sibling nodes' scope when
+      // multiple assert_api_response nodes appear in the same test.
+      // Uses the RegExp constructor (not a /pattern/ literal) — a pattern
+      // starting with "/" (e.g. a URL path like "/api/checkout") would collide
+      // with the literal's closing delimiter and get parsed as `//...` (a
+      // comment) if inlined directly between slashes.
+      const lines = [
+        `{`,
+        `  const response = await ${pageVar}.waitForResponse(resp => new RegExp(\`${esc(d.apiUrlPattern ?? '')}\`).test(resp.url()), { timeout: 15_000 })`,
+      ]
+      if (d.apiExpectedStatus != null) {
+        lines.push(`  await expect(response.status()).toBe(${d.apiExpectedStatus})`)
+      }
+      lines.push(`}`)
+      return lines
+    }
     case 'wait_ms':
-      return [`await page.waitForTimeout(${d.ms ?? 1000})`]
-    case 'wait_selector':
-      return [`await page.getByText(\`${esc(d.text ?? '')}\`).waitFor({ timeout: 10_000 })`]
+      return [`await ${pageVar}.waitForTimeout(${d.ms ?? 1000})`]
+    case 'wait_selector': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      return [`await ${loc}${hasOverride(d) ? '' : '.first()'}.waitFor({ timeout: 10_000 })`]
+    }
     case 'screenshot':
-      return [`await page.screenshot({ path: \`test-results/${esc(d.screenshotName ?? 'screenshot')}.png\` })`]
-    default:
-      return [`// TODO: unsupported node type "${(d as FlowNodeData).type}"`]
+      return [`await ${pageVar}.screenshot({ path: \`test-results/${esc(d.screenshotName ?? 'screenshot')}.png\` })`]
+    case 'press_key': {
+      if (hasOverride(d) || d.text) {
+        const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+        return [`await ${loc}${hasOverride(d) ? '' : '.first()'}.press(\`${esc(d.key ?? 'Enter')}\`)`]
+      }
+      return [`await ${pageVar}.keyboard.press(\`${esc(d.key ?? 'Enter')}\`)`]
+    }
+    case 'handle_dialog': {
+      const action = d.dialogAction ?? 'accept'
+      const arg = action === 'accept' && d.promptText ? `\`${esc(d.promptText)}\`` : ''
+      // Not awaited: registers a one-shot listener for the *next* dialog, must run
+      // before the action that triggers it (natural in sequential flow order).
+      return [`${pageVar}.once('dialog', dialog => dialog.${action}(${arg}))`]
+    }
+    case 'upload_file': {
+      const loc = locatorExpr(d, root, `${root}.locator('input[type="file"]')`)
+      return [`await ${loc}${hasOverride(d) ? '' : '.first()'}.setInputFiles(\`${esc(d.filePath ?? '')}\`)`]
+    }
+    case 'drag_drop': {
+      const loc = locatorExpr(d, root, `${root}.getByText(\`${esc(d.text ?? '')}\`)`)
+      const source = `${loc}${hasOverride(d) ? '' : '.first()'}`
+      const target = `${root}.locator(\`${esc(d.targetSelector ?? '')}\`)`
+      return [`await ${source}.dragTo(${target})`]
+    }
+    default: {
+      // Reaching here means a node's `type` isn't one of the known NodeType values —
+      // stale data from a removed node type, or a corrupted/hand-edited flow. Silently
+      // emitting a no-op comment would generate a spec that "passes" without doing
+      // anything the user expects; failing loudly at generation time surfaces the
+      // problem before a run gets scheduled.
+      const unknownType: string = (d as FlowNodeData).type
+      throw new Error(`Unsupported node type "${unknownType}" (label: "${d.label}") — cannot generate Playwright code for this node.`)
+    }
   }
 }
 

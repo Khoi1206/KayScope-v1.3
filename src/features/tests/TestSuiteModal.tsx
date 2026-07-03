@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef } from 'react'
 import { X, Upload } from 'lucide-react'
@@ -86,7 +86,7 @@ export default function TestSuiteModal({ suite, defaultCollectionId, onClose }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-th-border px-5 py-3">
           <p className="text-sm font-semibold text-th-fg">

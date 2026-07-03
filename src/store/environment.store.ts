@@ -29,6 +29,7 @@ interface EnvironmentStore {
   createEnvironment: (name: string, variables?: EnvironmentVariable[]) => Promise<EnvironmentItem>
   updateEnvironment: (id: string, data: Partial<Pick<EnvironmentItem, 'name' | 'variables'>>) => Promise<void>
   deleteEnvironment: (id: string) => Promise<void>
+  duplicateEnvironment: (id: string) => Promise<EnvironmentItem>
 
   /** Reset all loaded data — called when switching workspace */
   reset: () => void
@@ -89,6 +90,17 @@ export const useEnvironmentStore = create<EnvironmentStore>((set) => ({
       environments: s.environments.filter(e => e.id !== id),
       activeEnvironmentId: s.activeEnvironmentId === id ? null : s.activeEnvironmentId,
     }))
+  },
+
+  duplicateEnvironment: async (id) => {
+    const res = await fetch(`/api/environments/${id}/duplicate`, {
+      method: 'POST',
+      headers: getWorkspaceHeaders(),
+    })
+    if (!res.ok) throw new Error('Failed to duplicate environment')
+    const data: EnvironmentItem = await res.json()
+    set(s => ({ environments: [...s.environments, data] }))
+    return data
   },
 
   reset: () => set({ environments: [], activeEnvironmentId: null, error: null }),

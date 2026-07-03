@@ -240,16 +240,36 @@ export default function KVEditor({
   // Grid columns: [checkbox] [key] [value] [description?] [delete]
   const gridCols = showDescription ? 'grid-cols-[32px_1fr_1fr_1fr_32px]' : 'grid-cols-[32px_1fr_1fr_32px]'
 
+  const enabledCount = rows.filter(r => r.enabled).length
+  const allChecked = rows.length > 0 && enabledCount === rows.length
+  const indeterminate = enabledCount > 0 && enabledCount < rows.length
+
+  function toggleAll() {
+    const next = !allChecked
+    onChange(rows.map(r => ({ ...r, enabled: next })))
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {rows.length > 0 && (
-        <div className="rounded-md border border-th-border overflow-hidden">
+        <div className="rounded-xl border border-th-border overflow-hidden">
           {/* Header */}
           <div className={cn(
             'grid gap-0 border-b border-th-border bg-th-surface px-2 py-1.5 text-[11px] font-medium text-th-fg-muted',
             gridCols
           )}>
-            <span /><span className="px-2">{t('key')}</span><span className="px-2">{t('value')}</span>
+            <div className="flex justify-center">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                ref={el => { if (el) el.indeterminate = indeterminate }}
+                disabled={disabled}
+                onChange={toggleAll}
+                title={allChecked ? 'Disable all' : 'Enable all'}
+                className="h-3.5 w-3.5 accent-th-accent"
+              />
+            </div>
+            <span className="px-2">{t('key')}</span><span className="px-2">{t('value')}</span>
             {showDescription && <span className="px-2">{t('description')}</span>}
             <span />
           </div>

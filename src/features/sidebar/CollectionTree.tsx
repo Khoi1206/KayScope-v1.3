@@ -14,15 +14,22 @@ import {
   Plus,
   BookOpen,
   Eye,
-  GripVertical,
+  Copy,
+  CopyPlus,
 } from 'lucide-react'
+import { generateCurl } from '@/lib/snippet-generator'
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
+  type DragStartEvent,
   type DragEndEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -36,6 +43,7 @@ import { downloadFile } from '@/lib/download'
 import { CollectionRowSkeleton, RequestRowSkeleton } from '@/components/ui/Skeleton'
 import CollectionVarsEditor from '../environment/CollectionVarsEditor'
 import CollectionRunnerModal from '@/features/runner/CollectionRunnerModal'
+import CollectionScriptsModal from './CollectionScriptsModal'
 import ExampleViewerModal from '@/features/response-viewer/ExampleViewerModal'
 import InputModal from '@/components/InputModal'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -68,13 +76,23 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
     fetchRequests,
     createFolder,
     createRequest,
+    duplicateRequest,
     deleteCollection,
     deleteFolder,
     deleteRequest,
     reorderCollections,
     reorderFolders,
     reorderRequests,
+    moveFolderToParent,
+    moveRequest,
   } = useCollectionStore()
+
+  // Active drag item info — used by DragOverlay ghost
+  const [activeDragItem, setActiveDragItem] = useState<{
+    type: 'folder' | 'request'
+    name: string
+    method?: string
+  } | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const openTab = useRequestStore(s => s.openTab)
@@ -134,6 +152,7 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
   }
 
   const [editingVars, setEditingVars] = useState<CollectionItem | null>(null)
+  const [scriptsCollection, setScriptsCollection] = useState<CollectionItem | null>(null)
   const [runningCollection, setRunningCollection] = useState<CollectionItem | null>(null)
 
   // Examples expand state (keyed by requestId)
@@ -208,10 +227,10 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
     setRequestPrompt(null)
   }
 
-  function handleExportCollection(colId: string, colName: string, format: 'kayscope' | 'postman') {
-    const ext = format === 'postman' ? 'postman_collection.json' : 'kayscope.json'
+  function handleExportCollection(colId: string, colName: string, format: 'kayscope' | 'postman' | 'openapi') {
+    const ext = format === 'postman' ? 'postman_collection.json' : format === 'openapi' ? 'openapi.json' : 'kayscope.json'
     downloadFile(
-      `/api/collections/${colId}/export${format === 'postman' ? '?format=postman' : ''}`,
+      `/api/collections/${colId}/export${format !== 'kayscope' ? `?format=${format}` : ''}`,
       `${colName}.${ext}`
     ).catch(err => console.error('Export failed', err))
   }
@@ -226,6 +245,26 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
 
   function handleDeleteRequest(id: string, colId: string, name: string) {
     setDeleteTarget({ kind: 'request', id, colId, name })
+  }
+
+  async function handleDuplicateRequest(id: string, colId: string) {
+    try {
+      await duplicateRequest(id, colId)
+    } catch { /* silent */ }
+  }
+
+  function handleCopyCurl(id: string, colId: string) {
+    const req = (requests[colId] ?? []).find(r => r.id === id)
+    if (!req) return
+    const curl = generateCurl({
+      method: req.method,
+      url: req.url,
+      params: req.params,
+      headers: req.headers,
+      body: req.body as Parameters<typeof generateCurl>[0]['body'],
+      auth: req.auth as Parameters<typeof generateCurl>[0]['auth'],
+    })
+    navigator.clipboard.writeText(curl).catch(() => {})
   }
 
   async function confirmDelete() {
@@ -253,6 +292,51 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
         {t('sidebar.noCollections')}
       </p>
     )
+  }
+
+  // Returns true if targetId is an ancestor-or-equal of draggedId (would create a cycle)
+  function isCyclicNest(
+    draggedId: string,
+    targetId: string,
+    allFolders: Array<{ id: string; parentFolderId?: string | null }>
+  ): boolean {
+    if (draggedId === targetId) return true
+    let cur: string | null | undefined = targetId
+    while (cur) {
+      if (cur === draggedId) return true
+      cur = allFolders.find(f => f.id === cur)?.parentFolderId
+    }
+    return false
+  }
+
+  // Unified collision detection.
+  // Nest zones activate only when the pointer is in the BOTTOM half of the folder row
+  // (top half = insert as sibling, bottom half = nest inside).
+  // This lets users drag nested folders OUT by hovering over the top half of the parent row.
+  const unifiedCollision: CollisionDetection = (args) => {
+    const pointerY = args.pointerCoordinates?.y ?? 0
+
+    // Filter nest: containers to those whose bottom half the pointer is in
+    const midNestContainers = args.droppableContainers.filter(c => {
+      if (!String(c.id).startsWith('nest:')) return false
+      const rect = c.rect.current
+      if (!rect) return false
+      const midY = rect.top + rect.height / 2
+      return pointerY >= midY // bottom half → nest
+    })
+
+    const nestHits = midNestContainers.length > 0
+      ? pointerWithin({ ...args, droppableContainers: midNestContainers })
+      : []
+
+    if (nestHits.length > 0) return nestHits
+
+    // Not in a nest zone → closestCenter on sortable items only (exclude nest: droppables)
+    const sortableOnly = {
+      ...args,
+      droppableContainers: args.droppableContainers.filter(c => !String(c.id).startsWith('nest:')),
+    }
+    return closestCenter(sortableOnly)
   }
 
   function handleColDragEnd(event: DragEndEvent) {
@@ -284,22 +368,102 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
         // Hide collection entirely when searching and nothing matches (collection name, requests, or folders)
         if (isSearching && !matchesQ(col.name) && requests[col.id] && visibleTopReqs.length === 0 && visibleFolders.length === 0) return null
 
-        function handleReqDragEnd(event: DragEndEvent) {
-          const { active, over } = event
-          if (!over || active.id === over.id) return
-          const oldIdx = topLevelRequests.findIndex(r => r.id === active.id)
-          const newIdx = topLevelRequests.findIndex(r => r.id === over.id)
-          if (oldIdx === -1 || newIdx === -1) return
-          void reorderRequests(col.id, arrayMove(topLevelRequests, oldIdx, newIdx).map(r => r.id))
+        function handleDragStart(event: DragStartEvent) {
+          const activeId = String(event.active.id)
+          if (activeId.startsWith('fol:')) {
+            const folder = colFolders.find(f => f.id === activeId.slice(4))
+            if (folder) setActiveDragItem({ type: 'folder', name: folder.name })
+          } else if (activeId.startsWith('req:')) {
+            const req = colRequests.find(r => r.id === activeId.slice(4))
+            if (req) setActiveDragItem({ type: 'request', name: req.name, method: req.method })
+          }
         }
 
-        function handleFolderDragEnd(event: DragEndEvent) {
+        function handleItemDragEnd(event: DragEndEvent) {
+          setActiveDragItem(null)
           const { active, over } = event
           if (!over || active.id === over.id) return
-          const oldIdx = visibleColFolders.findIndex(f => f.id === active.id)
-          const newIdx = visibleColFolders.findIndex(f => f.id === over.id)
-          if (oldIdx === -1 || newIdx === -1) return
-          void reorderFolders(col.id, arrayMove(visibleColFolders, oldIdx, newIdx).map(f => f.id))
+
+          const activeId = String(active.id)
+          const overId = String(over.id)
+          const isActiveFolder = activeId.startsWith('fol:')
+          const isActiveRequest = activeId.startsWith('req:')
+
+          if (isActiveFolder) {
+            const draggedFolderId = activeId.slice(4)
+
+            if (overId.startsWith('nest:')) {
+              const targetId = overId.slice(5)
+              if (isCyclicNest(draggedFolderId, targetId, colFolders)) return
+              const draggedFolder = colFolders.find(f => f.id === draggedFolderId)
+              if (draggedFolder?.parentFolderId === targetId) {
+                // Already inside this folder — user dropped on parent → move one level up
+                const targetFolder = colFolders.find(f => f.id === targetId)
+                void moveFolderToParent(draggedFolderId, col.id, targetFolder?.parentFolderId ?? null)
+                return
+              }
+              void moveFolderToParent(draggedFolderId, col.id, targetId)
+              setExpanded(targetId, true)
+            } else if (overId.startsWith('fol:')) {
+              const overFolderId = overId.slice(4)
+              const draggedFolder = colFolders.find(f => f.id === draggedFolderId)
+              const overFolder = colFolders.find(f => f.id === overFolderId)
+              const draggedParent = draggedFolder?.parentFolderId ?? null
+              const overParent = overFolder?.parentFolderId ?? null
+
+              if (draggedParent !== overParent) {
+                // Cross-level: move dragged folder to the same level as the target folder
+                if (overParent && isCyclicNest(draggedFolderId, overParent, colFolders)) return
+                void moveFolderToParent(draggedFolderId, col.id, overParent)
+                return
+              }
+
+              // Same level: reorder within parent
+              const siblings = colFolders.filter(f => (f.parentFolderId ?? null) === draggedParent)
+              const oldIdx = siblings.findIndex(f => f.id === draggedFolderId)
+              const newIdx = siblings.findIndex(f => f.id === overFolderId)
+              if (oldIdx === -1 || newIdx === -1) return
+              void reorderFolders(col.id, arrayMove(siblings, oldIdx, newIdx).map(f => f.id))
+            } else if (overId.startsWith('req:')) {
+              // Folder dropped on a request → move folder to same parent level as that request
+              const overReq = colRequests.find(r => r.id === overId.slice(4))
+              if (!overReq) return
+              const draggedFolder = colFolders.find(f => f.id === draggedFolderId)
+              const targetParentId = overReq.folderId ?? null
+              if ((draggedFolder?.parentFolderId ?? null) === targetParentId) return
+              if (targetParentId && isCyclicNest(draggedFolderId, targetParentId, colFolders)) return
+              void moveFolderToParent(draggedFolderId, col.id, targetParentId)
+            }
+          }
+
+          if (isActiveRequest) {
+            const draggedReqId = activeId.slice(4)
+            const draggedReq = colRequests.find(r => r.id === draggedReqId)
+            if (!draggedReq) return
+
+            if (overId.startsWith('nest:')) {
+              const targetFolderId = overId.slice(5)
+              if (draggedReq.folderId === targetFolderId) return
+              void moveRequest(draggedReqId, col.id, targetFolderId)
+              setExpanded(targetFolderId, true)
+            } else if (overId.startsWith('req:')) {
+              const overReqId = overId.slice(4)
+              const overReq = colRequests.find(r => r.id === overReqId)
+              if (!overReq) return
+
+              if ((draggedReq.folderId ?? null) === (overReq.folderId ?? null)) {
+                // Same container — reorder
+                const siblings = colRequests.filter(r => (r.folderId ?? null) === (draggedReq.folderId ?? null))
+                const oldIdx = siblings.findIndex(r => r.id === draggedReqId)
+                const newIdx = siblings.findIndex(r => r.id === overReqId)
+                if (oldIdx === -1 || newIdx === -1) return
+                void reorderRequests(col.id, arrayMove(siblings, oldIdx, newIdx).map(r => r.id))
+              } else {
+                // Cross-folder move — go to target's parent folder (or top-level)
+                void moveRequest(draggedReqId, col.id, overReq.folderId ?? null)
+              }
+            }
+          }
         }
 
         return (
@@ -330,93 +494,118 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
                   items={[
                     { label: t('collection.run'), onClick: () => setRunningCollection(col) },
                     { label: t('collection.variables'), onClick: () => setEditingVars(col) },
+                    { label: 'Scripts', onClick: () => setScriptsCollection(col) },
                     { label: 'Export', onClick: () => handleExportCollection(col.id, col.name, 'postman') },
+                    { label: 'Export (OpenAPI)', onClick: () => handleExportCollection(col.id, col.name, 'openapi') },
                     { label: t('collection.delete'), onClick: () => handleDeleteCollection(col.id, col.name), danger: true },
                   ]}
                 />
               </div>
             </div>
 
-            {/* Expanded contents */}
+            {/* Expanded contents — one unified DndContext per collection */}
             {isOpen && (
               <div className="ml-4 border-l border-th-border pl-2">
-                {/* Skeleton while requests/folders are still loading for this collection */}
                 {!requests[col.id] && (
-                  <>
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <RequestRowSkeleton key={i} />
-                    ))}
-                  </>
+                  Array.from({ length: 3 }).map((_, i) => <RequestRowSkeleton key={i} />)
                 )}
 
-                {/* Top-level requests (sortable) */}
-                {requests[col.id] && topLevelRequests.length > 0 && (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd}>
-                    <SortableContext items={topLevelRequests.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                      {topLevelRequests.map(req => (
-                        <SortableItem key={req.id} id={req.id}>
-                          <RequestRow
-                            req={req}
-                            isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
-                            onOpen={() => handleOpenRequest(req.id, col.id)}
-                            onDelete={() => handleDeleteRequest(req.id, col.id, req.name)}
-                            examplesExpanded={!!examplesExpanded[req.id]}
-                            onToggleExamples={() => toggleExamples(req.id)}
-                            exampleList={examples[req.id]}
-                            onViewExample={ex => setViewingExample({ example: ex, requestId: req.id })}
-                            onDeleteExample={async exId => {
-                              await deleteExample(exId, req.id)
-                              const remaining = useExampleStore.getState().examples[req.id] ?? []
-                              if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [req.id]: false }))
-                            }}
-                          />
-                        </SortableItem>
-                      ))}
-                    </SortableContext>
+                {requests[col.id] && (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={unifiedCollision}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleItemDragEnd}
+                  >
+                    {/* Ghost overlay shown while dragging */}
+                    <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+                      {activeDragItem && (
+                        <div className="flex items-center gap-2 rounded border border-th-accent/40 bg-th-bg px-2 py-1 text-xs shadow-xl opacity-90 ring-1 ring-th-accent/20">
+                          {activeDragItem.type === 'request' ? (
+                            <>
+                              <span className={cn('w-10 shrink-0 font-mono font-semibold uppercase', METHOD_COLORS[activeDragItem.method ?? ''] ?? 'text-th-fg-muted')}>
+                                {activeDragItem.method}
+                              </span>
+                              <span className="truncate text-th-fg">{activeDragItem.name}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Folder size={12} className="shrink-0 text-th-accent" />
+                              <span className="truncate text-th-fg">{activeDragItem.name}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </DragOverlay>
+
+                    {/* Top-level requests */}
+                    {topLevelRequests.length > 0 && (
+                      <SortableContext items={topLevelRequests.map(r => `req:${r.id}`)} strategy={verticalListSortingStrategy}>
+                        {topLevelRequests.map(req => (
+                          <SortableItem key={`req:${req.id}`} id={`req:${req.id}`}>
+                            <RequestRow
+                              req={req}
+                              isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
+                              onOpen={() => handleOpenRequest(req.id, col.id)}
+                              onDelete={() => handleDeleteRequest(req.id, col.id, req.name)}
+                              onDuplicate={() => handleDuplicateRequest(req.id, col.id)}
+                              onCopyCurl={() => handleCopyCurl(req.id, col.id)}
+                              examplesExpanded={!!examplesExpanded[req.id]}
+                              onToggleExamples={() => toggleExamples(req.id)}
+                              exampleList={examples[req.id]}
+                              onViewExample={ex => setViewingExample({ example: ex, requestId: req.id })}
+                              onDeleteExample={async exId => {
+                                await deleteExample(exId, req.id)
+                                const remaining = useExampleStore.getState().examples[req.id] ?? []
+                                if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [req.id]: false }))
+                              }}
+                            />
+                          </SortableItem>
+                        ))}
+                      </SortableContext>
+                    )}
+
+                    {/* Top-level folders */}
+                    {visibleColFolders.length > 0 && (
+                      <SortableContext items={visibleColFolders.map(f => `fol:${f.id}`)} strategy={verticalListSortingStrategy}>
+                        {visibleColFolders.map(folder => (
+                          <SortableItem key={`fol:${folder.id}`} id={`fol:${folder.id}`}>
+                            <FolderRow
+                              folder={folder}
+                              allFolders={colFolders}
+                              allRequests={colRequests}
+                              searchQuery={q}
+                              expanded={expanded}
+                              onToggle={toggleExpanded}
+                              onOpenRequest={rId => handleOpenRequest(rId, col.id)}
+                              onAddRequest={fId => handleAddRequest(col.id, fId)}
+                              onAddFolder={fId => handleAddFolder(col.id, fId)}
+                              onDeleteFolder={(fId, fName) => handleDeleteFolder(fId, col.id, fName)}
+                              onDeleteRequest={(rId, rName) => handleDeleteRequest(rId, col.id, rName)}
+                              onDuplicateRequest={rId => handleDuplicateRequest(rId, col.id)}
+                              onCopyRequestCurl={rId => handleCopyCurl(rId, col.id)}
+                              activeTabId={activeTabId}
+                              activeTabs={activeTabs}
+                              examplesExpanded={examplesExpanded}
+                              onToggleExamples={toggleExamples}
+                              examples={examples}
+                              onViewExample={(ex, rId) => setViewingExample({ example: ex, requestId: rId })}
+                              onDeleteExample={async (exId, rId) => {
+                                await deleteExample(exId, rId)
+                                const remaining = useExampleStore.getState().examples[rId] ?? []
+                                if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [rId]: false }))
+                              }}
+                              nestable
+                            />
+                          </SortableItem>
+                        ))}
+                      </SortableContext>
+                    )}
+
+                    {colFolders.length === 0 && topLevelRequests.length === 0 && (
+                      <p className="py-1 text-xs text-th-fg-subtle">{t('collection.empty')}</p>
+                    )}
                   </DndContext>
-                )}
-
-                {/* Top-level folders (sortable) */}
-                {visibleColFolders.length > 0 && (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFolderDragEnd}>
-                    <SortableContext items={visibleColFolders.map(f => f.id)} strategy={verticalListSortingStrategy}>
-                      {visibleColFolders.map(folder => (
-                        <SortableItem key={folder.id} id={folder.id}>
-                          <FolderRow
-                            folder={folder}
-                            allFolders={colFolders}
-                            allRequests={colRequests}
-                            searchQuery={q}
-                            expanded={expanded}
-                            onToggle={toggleExpanded}
-                            onOpenRequest={rId => handleOpenRequest(rId, col.id)}
-                            onAddRequest={fId => handleAddRequest(col.id, fId)}
-                            onAddFolder={fId => handleAddFolder(col.id, fId)}
-                            onDeleteFolder={(fId, fName) => handleDeleteFolder(fId, col.id, fName)}
-                            onDeleteRequest={(rId, rName) => handleDeleteRequest(rId, col.id, rName)}
-                            activeTabId={activeTabId}
-                            activeTabs={activeTabs}
-                            examplesExpanded={examplesExpanded}
-                            onToggleExamples={toggleExamples}
-                            examples={examples}
-                            onViewExample={(ex, rId) => setViewingExample({ example: ex, requestId: rId })}
-                            onDeleteExample={async (exId, rId) => {
-                              await deleteExample(exId, rId)
-                              const remaining = useExampleStore.getState().examples[rId] ?? []
-                              if (remaining.length === 0) setExamplesExpanded(s => ({ ...s, [rId]: false }))
-                            }}
-                            reorderRequests={reorderRequests}
-                            sensors={sensors}
-                            collectionId={col.id}
-                          />
-                        </SortableItem>
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                )}
-
-                {requests[col.id] && colFolders.length === 0 && topLevelRequests.length === 0 && (
-                  <p className="py-1 text-xs text-th-fg-subtle">{t('collection.empty')}</p>
                 )}
               </div>
             )}
@@ -431,6 +620,12 @@ export default function CollectionTree({ query = '' }: CollectionTreeProps) {
       <CollectionVarsEditor
         collection={editingVars}
         onClose={() => setEditingVars(null)}
+      />
+    )}
+    {scriptsCollection && (
+      <CollectionScriptsModal
+        collection={scriptsCollection}
+        onClose={() => setScriptsCollection(null)}
       />
     )}
     {runningCollection && (
@@ -485,18 +680,11 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : undefined }}
-      className="group/sortable relative"
+      className="cursor-grab active:cursor-grabbing"
     >
-      <button
-        {...attributes}
-        {...listeners}
-        tabIndex={-1}
-        onClick={e => e.stopPropagation()}
-        className="absolute left-0 top-1/2 z-10 hidden -translate-x-3 -translate-y-1/2 cursor-grab p-0.5 text-th-fg-subtle active:cursor-grabbing group-hover/sortable:block"
-      >
-        <GripVertical size={10} />
-      </button>
       {children}
     </div>
   )
@@ -507,13 +695,14 @@ function DropdownMenu({
   items,
 }: {
   trigger: React.ReactNode
-  items: { label: string; onClick: () => void; danger?: boolean }[]
+  items: { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean }[]
 }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
       <button
         onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        onPointerDown={e => e.stopPropagation()}
         className="rounded p-0.5 text-th-fg-muted hover:text-th-fg"
       >
         {trigger}
@@ -521,16 +710,17 @@ function DropdownMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-md border border-th-border bg-th-bg py-1 shadow-xl">
+          <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-th-border bg-th-bg py-1 shadow-xl">
             {items.map(item => (
               <button
                 key={item.label}
                 onClick={e => { e.stopPropagation(); setOpen(false); item.onClick() }}
                 className={cn(
-                  'w-full px-3 py-1.5 text-left text-xs hover:bg-th-surface-hover',
+                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-th-surface-hover',
                   item.danger ? 'text-red-400' : 'text-th-fg'
                 )}
               >
+                {item.icon && <span className="shrink-0 opacity-70">{item.icon}</span>}
                 {item.label}
               </button>
             ))}
@@ -601,6 +791,8 @@ function RequestRow({
   isActive,
   onOpen,
   onDelete,
+  onDuplicate,
+  onCopyCurl,
   examplesExpanded,
   onToggleExamples,
   exampleList,
@@ -611,6 +803,8 @@ function RequestRow({
   isActive?: boolean
   onOpen: () => void
   onDelete: () => void
+  onDuplicate?: () => void
+  onCopyCurl?: () => void
   examplesExpanded: boolean
   onToggleExamples: () => void
   exampleList?: Example[]
@@ -648,13 +842,14 @@ function RequestRow({
           <span className="truncate text-th-fg">{req.name}</span>
         </button>
         <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
-          <button
-            title="Delete request"
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            className="rounded p-0.5 text-th-fg-muted hover:text-red-400"
-          >
-            <Trash2 size={12} />
-          </button>
+          <DropdownMenu
+            trigger={<MoreHorizontal size={12} />}
+            items={[
+              ...(onDuplicate ? [{ label: 'Duplicate', icon: <CopyPlus size={11} />, onClick: onDuplicate }] : []),
+              ...(onCopyCurl ? [{ label: 'Copy as cURL', icon: <Copy size={11} />, onClick: onCopyCurl }] : []),
+              { label: 'Delete', icon: <Trash2 size={11} />, onClick: onDelete, danger: true },
+            ]}
+          />
         </div>
       </div>
 
@@ -692,6 +887,8 @@ function FolderRow({
   onAddFolder,
   onDeleteFolder,
   onDeleteRequest,
+  onDuplicateRequest,
+  onCopyRequestCurl,
   activeTabId,
   activeTabs,
   examplesExpanded,
@@ -700,9 +897,7 @@ function FolderRow({
   onViewExample,
   onDeleteExample,
   searchQuery = '',
-  reorderRequests,
-  sensors,
-  collectionId,
+  nestable,
 }: {
   folder: { id: string; name: string; parentFolderId?: string | null }
   allFolders: Array<{ id: string; name: string; parentFolderId?: string | null }>
@@ -714,6 +909,8 @@ function FolderRow({
   onAddFolder: (folderId: string) => void
   onDeleteFolder: (id: string, name: string) => void
   onDeleteRequest: (id: string, name: string) => void
+  onDuplicateRequest?: (id: string) => void
+  onCopyRequestCurl?: (id: string) => void
   activeTabId: string | null
   activeTabs: Array<{ id: string; requestId?: string }>
   examplesExpanded: Record<string, boolean>
@@ -722,11 +919,14 @@ function FolderRow({
   onViewExample: (ex: Example, requestId: string) => void
   onDeleteExample: (exId: string, requestId: string) => void
   searchQuery?: string
-  reorderRequests?: (collectionId: string, ids: string[]) => Promise<void>
-  sensors?: ReturnType<typeof useSensors>
-  collectionId?: string
+  nestable?: boolean
 }) {
   const t = useTranslations()
+  // All folders register as nest targets so requests and sub-folders can be dropped into them
+  const { setNodeRef: nestRef, isOver: isNestOver } = useDroppable({
+    id: `nest:${folder.id}`,
+    disabled: !nestable,
+  })
   const isSearching = !!searchQuery
   const isOpen = isSearching ? true : !!expanded[folder.id]
   const allChildFolders = allFolders.filter(f => f.parentFolderId === folder.id)
@@ -744,18 +944,15 @@ function FolderRow({
     ? allChildRequests.filter(r => r.name.toLowerCase().includes(searchQuery))
     : allChildRequests
 
-  function handleChildReqDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over || active.id === over.id || !reorderRequests || !collectionId) return
-    const oldIdx = childRequests.findIndex(r => r.id === active.id)
-    const newIdx = childRequests.findIndex(r => r.id === over.id)
-    if (oldIdx === -1 || newIdx === -1) return
-    void reorderRequests(collectionId, arrayMove(childRequests, oldIdx, newIdx).map(r => r.id))
-  }
-
   return (
     <div>
-      <div className="group flex w-full items-center rounded hover:bg-th-surface-hover">
+      <div
+        ref={nestRef}
+        className={cn(
+          'group flex w-full items-center rounded hover:bg-th-surface-hover',
+          isNestOver && 'ring-1 ring-inset ring-th-accent bg-th-accent/8'
+        )}
+      >
         <button
           onClick={() => onToggle(folder.id)}
           className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-2 py-1 text-xs text-left"
@@ -765,7 +962,7 @@ function FolderRow({
           ) : (
             <ChevronRight size={12} className="shrink-0 text-th-fg-muted" />
           )}
-          <Folder size={12} className="shrink-0 text-th-fg-muted" />
+          <Folder size={12} className={cn('shrink-0', isNestOver ? 'text-th-accent' : 'text-th-fg-muted')} />
           <span className="truncate text-th-fg">{folder.name}</span>
         </button>
         <div className="hidden shrink-0 items-center pr-1 group-hover:flex">
@@ -782,68 +979,57 @@ function FolderRow({
 
       {isOpen && (
         <div className="ml-3 border-l border-th-border pl-2">
-          {sensors && reorderRequests && childRequests.length > 1 ? (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleChildReqDragEnd}>
-              <SortableContext items={childRequests.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                {childRequests.map(req => (
-                  <SortableItem key={req.id} id={req.id}>
-                    <RequestRow
-                      req={req}
-                      isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
-                      onOpen={() => onOpenRequest(req.id)}
-                      onDelete={() => onDeleteRequest(req.id, req.name)}
-                      examplesExpanded={!!examplesExpanded[req.id]}
-                      onToggleExamples={() => onToggleExamples(req.id)}
-                      exampleList={examples[req.id]}
-                      onViewExample={ex => onViewExample(ex, req.id)}
-                      onDeleteExample={exId => onDeleteExample(exId, req.id)}
-                    />
-                  </SortableItem>
-                ))}
-              </SortableContext>
-            </DndContext>
-          ) : (
-            childRequests.map(req => (
-              <RequestRow
-                key={req.id}
-                req={req}
-                isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
-                onOpen={() => onOpenRequest(req.id)}
-                onDelete={() => onDeleteRequest(req.id, req.name)}
-                examplesExpanded={!!examplesExpanded[req.id]}
-                onToggleExamples={() => onToggleExamples(req.id)}
-                exampleList={examples[req.id]}
-                onViewExample={ex => onViewExample(ex, req.id)}
-                onDeleteExample={exId => onDeleteExample(exId, req.id)}
-              />
-            ))
-          )}
-          {childFolders.map(cf => (
-            <FolderRow
-              key={cf.id}
-              folder={cf}
-              allFolders={allFolders}
-              allRequests={allRequests}
-              expanded={expanded}
-              onToggle={onToggle}
-              onOpenRequest={onOpenRequest}
-              onAddRequest={onAddRequest}
-              onAddFolder={onAddFolder}
-              onDeleteFolder={onDeleteFolder}
-              onDeleteRequest={onDeleteRequest}
-              activeTabId={activeTabId}
-              activeTabs={activeTabs}
-              examplesExpanded={examplesExpanded}
-              onToggleExamples={onToggleExamples}
-              examples={examples}
-              onViewExample={onViewExample}
-              onDeleteExample={onDeleteExample}
-              searchQuery={searchQuery}
-              reorderRequests={reorderRequests}
-              sensors={sensors}
-              collectionId={collectionId}
-            />
-          ))}
+          {/* Requests inside this folder — SortableContext registers with the outer per-collection DndContext */}
+          <SortableContext items={childRequests.map(r => `req:${r.id}`)} strategy={verticalListSortingStrategy}>
+            {childRequests.map(req => (
+              <SortableItem key={`req:${req.id}`} id={`req:${req.id}`}>
+                <RequestRow
+                  req={req}
+                  isActive={activeTabs.some(t => t.requestId === req.id && t.id === activeTabId)}
+                  onOpen={() => onOpenRequest(req.id)}
+                  onDelete={() => onDeleteRequest(req.id, req.name)}
+                  onDuplicate={onDuplicateRequest ? () => onDuplicateRequest(req.id) : undefined}
+                  onCopyCurl={onCopyRequestCurl ? () => onCopyRequestCurl(req.id) : undefined}
+                  examplesExpanded={!!examplesExpanded[req.id]}
+                  onToggleExamples={() => onToggleExamples(req.id)}
+                  exampleList={examples[req.id]}
+                  onViewExample={ex => onViewExample(ex, req.id)}
+                  onDeleteExample={exId => onDeleteExample(exId, req.id)}
+                />
+              </SortableItem>
+            ))}
+          </SortableContext>
+
+          {/* Child folders — also register with outer DndContext */}
+          <SortableContext items={childFolders.map(f => `fol:${f.id}`)} strategy={verticalListSortingStrategy}>
+            {childFolders.map(cf => (
+              <SortableItem key={`fol:${cf.id}`} id={`fol:${cf.id}`}>
+                <FolderRow
+                  folder={cf}
+                  allFolders={allFolders}
+                  allRequests={allRequests}
+                  expanded={expanded}
+                  onToggle={onToggle}
+                  onOpenRequest={onOpenRequest}
+                  onAddRequest={onAddRequest}
+                  onAddFolder={onAddFolder}
+                  onDeleteFolder={onDeleteFolder}
+                  onDeleteRequest={onDeleteRequest}
+                  onDuplicateRequest={onDuplicateRequest}
+                  onCopyRequestCurl={onCopyRequestCurl}
+                  activeTabId={activeTabId}
+                  activeTabs={activeTabs}
+                  examplesExpanded={examplesExpanded}
+                  onToggleExamples={onToggleExamples}
+                  examples={examples}
+                  onViewExample={onViewExample}
+                  onDeleteExample={onDeleteExample}
+                  searchQuery={searchQuery}
+                  nestable
+                />
+              </SortableItem>
+            ))}
+          </SortableContext>
         </div>
       )}
     </div>

@@ -101,7 +101,16 @@ export async function runCollection(
 
     const requestResults: RequestRunResult[] = []
 
-    for (const req of ordered) {
+    // Build name→index map for pm.setNextRequest() lookups
+    const nameToIndex = new Map(ordered.map((r, i) => [r.name, i]))
+
+    let reqIdx = 0
+    const visited = new Set<number>()
+    while (reqIdx < ordered.length) {
+      if (visited.has(reqIdx)) break  // cycle guard
+      visited.add(reqIdx)
+
+      const req = ordered[reqIdx]!
       const result = await runRequest({
         req,
         workspaceId: input.workspaceId,
@@ -123,6 +132,22 @@ export async function runCollection(
       iterEnvVars = { ...iterEnvVars, ...result.envMutations }
       iterCollVars = { ...iterCollVars, ...result.collMutations }
       iterGlobalVars = { ...iterGlobalVars, ...result.globalMutations }
+
+      // pm.setNextRequest() support
+      const nextName = result.nextRequest
+      if (nextName === null) {
+        break  // pm.setNextRequest(null) stops the runner
+      } else if (nextName !== undefined) {
+        const jumpIdx = nameToIndex.get(nextName)
+        if (jumpIdx !== undefined) {
+          reqIdx = jumpIdx
+          continue
+        }
+        // Named request not found — log and continue normally
+        logger.warn({ nextName }, 'setNextRequest: request not found in collection')
+      }
+
+      reqIdx++
     }
 
     iterationResults.push({ iteration: iterIdx + 1, dataRow, results: requestResults })
@@ -169,6 +194,8 @@ interface RunRequestOutput {
   envMutations: Record<string, string>
   collMutations: Record<string, string>
   globalMutations: Record<string, string>
+  /** pm.setNextRequest() value from post-script (undefined = no call, null = stop) */
+  nextRequest?: string | null
 }
 
 async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
@@ -291,6 +318,7 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
   let postLogs: string[] = []
   let postTests: Array<{ name: string; passed: boolean; error?: string }> = []
   let allMutations = { local: {} as Record<string, string>, environment: {} as Record<string, string>, collection: {} as Record<string, string>, global: {} as Record<string, string> }
+  let nextRequest: string | null | undefined
 
   if (req.postRequestScript?.trim()) {
     const post = await executeScript(req.postRequestScript, scriptCtx, {
@@ -303,6 +331,7 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
     postError = post.error
     postLogs = post.logs
     postTests = post.tests
+    nextRequest = post.nextRequest
     applyMutations(scriptCtx, scopes, post.mutations)
 
     persistMutations(
@@ -331,6 +360,7 @@ async function runRequest(inp: RunRequestInput): Promise<RunRequestOutput> {
     envMutations: allMutations.environment,
     collMutations: allMutations.collection,
     globalMutations: allMutations.global,
+    nextRequest,
   }
 }
 

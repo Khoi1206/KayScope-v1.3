@@ -86,7 +86,7 @@ export default function WorkspaceModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-lg border border-th-border bg-th-surface shadow-xl"
+        className="w-full max-w-md rounded-xl border border-th-border bg-th-surface shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

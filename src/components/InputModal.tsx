@@ -39,7 +39,7 @@ export default function InputModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-th-border bg-th-bg shadow-2xl"
+        className="w-full max-w-sm rounded-xl border border-th-border bg-th-bg shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="border-b border-th-border px-5 py-3">

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
+import { requireActiveWorkspace, requireWorkspaceRole } from '@/lib/auth/workspace-guard'
 import { findCollectionsByWorkspace, createCollection, reorderCollections } from '@/db/queries/collections'
+import { logActivity } from '@/db/queries/activity_logs'
 import { createCollectionSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { ValidationError } from '@/lib/errors'
@@ -24,7 +25,7 @@ export function GET(req: NextRequest) {
 export function PATCH(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const body = await req.json() as { items: { id: string; sortOrder: number }[] }
     if (!Array.isArray(body?.items)) throw new ValidationError('items array required')
     const existing = await findCollectionsByWorkspace(workspace.id)
@@ -38,11 +39,19 @@ export function PATCH(req: NextRequest) {
 export function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const body = await req.json()
     const parsed = createCollectionSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
     const col = await createCollection(workspace.id, { ...parsed.data, createdBy: session.user.id })
+    await logActivity({
+      workspaceId: workspace.id,
+      actorId: session.user.id,
+      action: 'created',
+      entityType: 'collection',
+      entityId: col.id,
+      entityName: col.name,
+    })
     return NextResponse.json(col, { status: 201 })
   })
 }

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
@@ -187,7 +187,7 @@ export default function SaveRequestModal({ initialName, snapshot, onClose, onSav
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-[480px] flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-full max-w-[480px] flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
 
         {/* Title */}
         <div className="px-5 pt-5 pb-3">

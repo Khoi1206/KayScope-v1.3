@@ -5,11 +5,19 @@ import { createId } from '../utils'
 
 // ── Result types stored in JSONB ──────────────────────────────────────────────
 
+export interface PlaywrightAttachment {
+  name: string
+  contentType: string
+  /** Path relative to this run's artifacts directory — resolved server-side by the artifact-serving route. Never an absolute filesystem path. */
+  relPath: string
+}
+
 export interface PlaywrightTestResult {
   testName: string
   status: 'passed' | 'failed' | 'skipped' | 'timedOut'
   duration: number
   error?: string
+  attachments?: PlaywrightAttachment[]
 }
 
 export interface PlaywrightRunResult {
@@ -34,7 +42,7 @@ export const flowRuns = pgTable('flow_runs', {
   flowId: text('flow_id').notNull().references(() => flows.id, { onDelete: 'cascade' }),
   // Snapshot — survives flow renames
   flowName: text('flow_name').notNull(),
-  status: text('status').$type<'running' | 'passed' | 'failed' | 'errored'>().notNull().default('running'),
+  status: text('status').$type<'running' | 'passed' | 'failed' | 'errored' | 'timedOut'>().notNull().default('running'),
   // Full Playwright JSON reporter output — excluded from list queries
   testResults: jsonb('test_results').$type<PlaywrightRunResult>(),
   // Summary — included in all list views

@@ -46,6 +46,8 @@ export interface ScriptResult {
   tests: TestResult[]
   logs: string[]
   error?: string
+  /** Name of the next request to jump to (pm.setNextRequest). null = stop runner. */
+  nextRequest?: string | null
 }
 
 // ── Worker pool ────────────────────────────────────────────────────────────

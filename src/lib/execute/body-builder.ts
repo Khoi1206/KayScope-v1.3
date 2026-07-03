@@ -81,6 +81,24 @@ export async function buildRequestBody(
       }
     }
 
+    case 'graphql': {
+      const query = interpolate(reqBody.graphqlQuery ?? '', scopes, dynamicVars)
+      const variablesRaw = interpolate(reqBody.graphqlVariables ?? '', scopes, dynamicVars)
+      const operationName = interpolate(reqBody.graphqlOperationName ?? '', scopes, dynamicVars)
+      let variables: unknown = {}
+      try {
+        variables = variablesRaw.trim() ? JSON.parse(variablesRaw) : {}
+      } catch {
+        // Invalid JSON in the variables editor — send an empty object rather than
+        // failing the whole request; the server on the other end will report the
+        // real validation error for the query itself.
+      }
+      return {
+        body: JSON.stringify({ query, variables, ...(operationName ? { operationName } : {}) }),
+        contentType: 'application/json',
+      }
+    }
+
     default:
       return { body: null, contentType: null }
   }

@@ -1,31 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
-import { BookmarkPlus } from 'lucide-react'
+import { BookmarkPlus, Copy, Check } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import type { ResponseData } from '@/store/request.store'
 import { useRequestStore } from '@/store/request.store'
 import { useExampleStore } from '@/store/example.store'
 import PrettyViewer from './PrettyViewer'
 import RawViewer from './RawViewer'
+import BinaryViewer from './BinaryViewer'
 import HeadersViewer from './HeadersViewer'
 import TimingViewer from './TimingViewer'
+import CookiesViewer from './CookiesViewer'
 
-type ResponseTab = 'pretty' | 'raw' | 'headers' | 'timing' | 'console'
+type ResponseTab = 'pretty' | 'raw' | 'headers' | 'cookies' | 'timing' | 'console'
 
 interface Props {
   response: ResponseData
   requestId?: string
   requestName?: string
+  responseKey?: number
 }
 
 function statusBadgeClass(status: number) {
-  if (status === 0) return 'bg-th-border/30 text-th-fg-muted'
-  if (status < 200) return 'bg-blue-500/15 text-blue-400'
-  if (status < 300) return 'bg-green-500/15 text-green-400'
-  if (status < 400) return 'bg-yellow-500/15 text-yellow-400'
-  return 'bg-red-500/15 text-red-400'
+  if (status === 0) return 'bg-th-border/50 text-th-fg-muted'
+  if (status < 200) return 'bg-blue-500/20 text-blue-400'
+  if (status < 300) return 'bg-green-500/25 text-green-500'
+  if (status < 400) return 'bg-yellow-500/20 text-yellow-500'
+  if (status < 500) return 'bg-orange-500/25 text-orange-500'
+  return 'bg-red-500/25 text-red-500'
 }
 
 function formatSize(bytes: number) {
@@ -34,7 +38,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-export default function ResponsePanel({ response, requestId, requestName }: Props) {
+export default function ResponsePanel({ response, requestId, requestName, responseKey }: Props) {
   const t = useTranslations('response')
   const te = useTranslations('examples')
   const { createExample } = useExampleStore()
@@ -42,13 +46,37 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
   const activeSnap = useRequestStore(s => activeTabId ? s.snapshots[activeTabId] : null)
   const [tab, setTab] = useState<ResponseTab>('pretty')
   const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   const hasLogs = (response.logs?.length ?? 0) > 0
+
+  // Auto-switch tab on each new response
+  useEffect(() => {
+    if (responseKey === undefined) return
+    // Pre-script error means no HTTP response body — go straight to console
+    if (response.preScriptError && hasLogs) {
+      setTab('console')
+    } else {
+      setTab('pretty')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responseKey])
+
+  function copyBody() {
+    if (!response.body) return
+    navigator.clipboard.writeText(response.body).then(() => {
+      setCopied(true)
+      clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500)
+    })
+  }
 
   const TABS: { key: ResponseTab; label: string; dot?: boolean }[] = [
     { key: 'pretty', label: t('pretty') },
     { key: 'raw', label: t('raw') },
     { key: 'headers', label: t('headers') },
+    { key: 'cookies', label: t('cookies'), dot: (response.cookies?.length ?? 0) > 0 },
     { key: 'timing', label: t('timing') },
     { key: 'console', label: t('console'), dot: hasLogs },
   ]
@@ -59,10 +87,10 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
   return (
     <div className="flex h-full flex-col overflow-hidden bg-th-bg">
       {/* Status bar */}
-      <div className="flex items-center gap-3 border-b border-th-border bg-th-surface px-3 py-1 text-xs">
+      <div className="flex items-center gap-3 border-b border-th-border bg-th-bg px-3 py-1.5 text-xs">
         {response.status > 0 && (
           <>
-            <span className={cn('rounded-md px-2 py-0.5 font-bold tabular-nums', statusBadgeClass(response.status))}>
+            <span className={cn('rounded-lg px-2.5 py-0.5 font-bold tabular-nums', statusBadgeClass(response.status))}>
               {response.status}
             </span>
             <span className="text-th-fg-muted">{response.statusText}</span>
@@ -70,6 +98,14 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
             <span className="font-mono text-th-fg-muted">{response.durationMs} <span className="text-th-fg-subtle">ms</span></span>
             <span className="text-th-fg-subtle">·</span>
             <span className="font-mono text-th-fg-muted">{formatSize(response.size)}</span>
+            {response.body && response.body.length >= 51_200 && (
+              <span
+                className="rounded bg-yellow-500/15 px-1.5 py-0.5 text-[10px] font-medium text-yellow-500"
+                title="Response body exceeded 50 KB and was truncated"
+              >
+                Truncated
+              </span>
+            )}
           </>
         )}
         {response.status === 0 && (
@@ -81,6 +117,16 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
           )}
           {response.postScriptError && (
             <span className="rounded-md bg-yellow-500/10 px-2 py-0.5 text-yellow-400" title={response.postScriptError}>⚠ Post-script</span>
+          )}
+          {response.body && (
+            <button
+              onClick={copyBody}
+              title="Copy response body"
+              className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+            >
+              {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
+            </button>
           )}
           {canSave && (
             <button
@@ -126,30 +172,30 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-0 border-b border-th-border bg-th-surface px-3">
+      <div className="flex items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
         {TABS.map(({ key, label, dot }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={cn(
-              'relative px-3 py-2 text-xs font-medium transition-colors',
+              'flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150',
               tab === key
-                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-th-accent'
-                : 'text-th-fg-muted hover:text-th-fg'
+                ? 'bg-th-bg text-th-fg shadow-sm'
+                : 'text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg'
             )}
           >
             {label}
-            {dot && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-th-accent align-middle" />}
+            {dot && <span className="inline-block h-1.5 w-1.5 rounded-full bg-th-accent" />}
           </button>
         ))}
         {/* Test results badge */}
         {response.tests && response.tests.length > 0 && (
           <div className="ml-auto flex items-center gap-1.5 px-2 text-xs">
-            <span className="rounded-md bg-green-500/15 px-2 py-0.5 font-medium text-green-400">
+            <span className="rounded-lg bg-green-500/15 px-2 py-0.5 font-medium text-green-400">
               {response.tests.filter(t => t.passed).length} ✓
             </span>
             {response.tests.some(t => !t.passed) && (
-              <span className="rounded-md bg-red-500/15 px-2 py-0.5 font-medium text-red-400">
+              <span className="rounded-lg bg-red-500/15 px-2 py-0.5 font-medium text-red-400">
                 {response.tests.filter(t => !t.passed).length} ✗
               </span>
             )}
@@ -159,9 +205,14 @@ export default function ResponsePanel({ response, requestId, requestName }: Prop
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto">
-        {tab === 'pretty' && <PrettyViewer body={response.body} contentType={contentType} />}
+        {tab === 'pretty' && (
+          response.isBinary
+            ? <BinaryViewer body={response.body} contentType={contentType} size={response.size} />
+            : <PrettyViewer body={response.body} contentType={contentType} />
+        )}
         {tab === 'raw' && <RawViewer body={response.body} />}
         {tab === 'headers' && <HeadersViewer headers={response.headers} />}
+        {tab === 'cookies' && <CookiesViewer cookies={response.cookies} />}
         {tab === 'timing' && <TimingViewer response={response} />}
         {tab === 'console' && (
           <div className="p-3 font-mono text-xs">

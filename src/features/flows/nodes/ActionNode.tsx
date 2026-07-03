@@ -2,6 +2,7 @@
 
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/components/ui/cn'
 import type { FlowNodeData, NodeType } from '@/db/schema/flows'
 
@@ -19,28 +20,15 @@ const CATEGORY_COLORS: Record<NodeType, string> = {
   assert_visible: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   assert_not_visible: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   assert_value: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  assert_api_response: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   wait_ms: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
   wait_selector: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
   screenshot: 'bg-pink-500/15 text-pink-400 border-pink-500/30',
-}
-
-const TYPE_LABELS: Record<NodeType, string> = {
-  navigate: 'Navigate',
-  click_text: 'Click text',
-  click_role: 'Click role',
-  click_placeholder: 'Click input',
-  click_title: 'Click title',
-  hover_text: 'Hover',
-  fill_placeholder: 'Fill input',
-  fill_label: 'Fill label',
-  select_option: 'Select',
-  assert_url: 'Assert URL',
-  assert_visible: 'Visible',
-  assert_not_visible: 'Not visible',
-  assert_value: 'Assert value',
-  wait_ms: 'Wait ms',
-  wait_selector: 'Wait text',
-  screenshot: 'Screenshot',
+  press_key: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  handle_dialog: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  upload_file: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  drag_drop: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  click_new_tab: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
 }
 
 function nodeSummary(d: FlowNodeData): string {
@@ -51,12 +39,19 @@ function nodeSummary(d: FlowNodeData): string {
   if (d.type === 'fill_label' || d.type === 'select_option') return d.labelText ?? ''
   if (d.type === 'click_title') return d.title ?? ''
   if (d.type === 'assert_url') return d.pattern ? `/${d.pattern}/` : ''
+  if (d.type === 'assert_api_response') return d.apiExpectedStatus != null ? `${d.apiUrlPattern ?? ''} → ${d.apiExpectedStatus}` : d.apiUrlPattern ?? ''
   if (d.type === 'wait_ms') return d.ms != null ? `${d.ms}ms` : ''
   if (d.type === 'screenshot') return d.screenshotName ?? ''
+  if (d.type === 'press_key') return d.key ?? ''
+  if (d.type === 'handle_dialog') return d.dialogAction ?? 'accept'
+  if (d.type === 'upload_file') return d.filePath ?? ''
+  if (d.type === 'drag_drop') return d.text && d.targetSelector ? `${d.text} → ${d.targetSelector}` : d.text ?? d.targetSelector ?? ''
+  if (d.type === 'click_new_tab') return d.text ?? ''
   return ''
 }
 
 export default function ActionNode({ data, selected }: NodeProps) {
+  const t = useTranslations('flows')
   const nodeData = data as unknown as FlowNodeData
   const colorCls = CATEGORY_COLORS[nodeData.type] ?? 'bg-th-surface text-th-fg border-th-border'
   const summary = nodeSummary(nodeData)
@@ -73,10 +68,10 @@ export default function ActionNode({ data, selected }: NodeProps) {
       <div className="px-3 py-2">
         <div className="flex items-center gap-1.5 mb-1">
           <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold uppercase border', colorCls)}>
-            {TYPE_LABELS[nodeData.type]}
+            {t(`palette.${nodeData.type}`)}
           </span>
         </div>
-        <p className="text-xs font-medium text-th-fg truncate">{nodeData.label || '(untitled)'}</p>
+        <p className="text-xs font-medium text-th-fg truncate">{nodeData.label || t('properties.untitled')}</p>
         {summary && (
           <p className="mt-0.5 text-[10px] text-th-fg-subtle font-mono truncate">{summary}</p>
         )}

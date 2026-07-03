@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
+import { requireWorkspaceRole } from '@/lib/auth/workspace-guard'
 import { findCollectionByIdForWorkspace } from '@/db/queries/collections'
 import { findTestSuiteByIdForWorkspace } from '@/db/queries/test_suites'
 import { createTestRun, finalizeTestRun } from '@/db/queries/test_runs'
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession().catch(() => null)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const workspace = await requireActiveWorkspace(req, session.user.id).catch(() => null)
+  const workspace = await requireWorkspaceRole(req, session.user.id, 'editor').catch(() => null)
   if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
   const suite = await findTestSuiteByIdForWorkspace(id, workspace.id)

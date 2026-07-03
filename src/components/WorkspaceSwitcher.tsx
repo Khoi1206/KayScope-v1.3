@@ -1,10 +1,12 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Check, ChevronDown, Plus, Settings } from 'lucide-react'
+import { Check, ChevronDown, Plus, Settings, History, Users } from 'lucide-react'
 import { useWorkspaceStore } from '@/store/workspace.store'
 import WorkspaceModal from './WorkspaceModal'
+import ActivityLogPanel from '@/features/workspace/ActivityLogPanel'
+import WorkspaceMembersModal from '@/features/workspace/WorkspaceMembersModal'
 
 export default function WorkspaceSwitcher() {
   const t = useTranslations('workspace')
@@ -12,6 +14,8 @@ export default function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [showActivity, setShowActivity] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -56,7 +60,7 @@ export default function WorkspaceSwitcher() {
         </button>
 
         {open && (
-          <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-th-border bg-th-surface shadow-lg py-1">
+          <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-xl border border-th-border bg-th-surface shadow-lg py-1">
             {/* Workspace list */}
             {workspaces.map(ws => (
               <button
@@ -101,6 +105,28 @@ export default function WorkspaceSwitcher() {
                 {t('settings')}
               </button>
             )}
+
+            {/* Activity log */}
+            {activeWorkspaceId && (
+              <button
+                onClick={() => { setOpen(false); setShowActivity(true) }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg transition-colors"
+              >
+                <History size={12} />
+                {t('activityLog')}
+              </button>
+            )}
+
+            {/* Members */}
+            {activeWorkspaceId && (
+              <button
+                onClick={() => { setOpen(false); setShowMembers(true) }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg transition-colors"
+              >
+                <Users size={12} />
+                {t('membersLabel')}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -120,6 +146,22 @@ export default function WorkspaceSwitcher() {
           initialType={activeType}
           initialDescription={activeWorkspace?.description ?? ''}
           onClose={() => setShowEdit(false)}
+        />
+      )}
+
+      {showActivity && activeWorkspaceId && (
+        <ActivityLogPanel
+          workspaceId={activeWorkspaceId}
+          workspaceName={activeName}
+          onClose={() => setShowActivity(false)}
+        />
+      )}
+
+      {showMembers && activeWorkspaceId && (
+        <WorkspaceMembersModal
+          workspaceId={activeWorkspaceId}
+          workspaceName={activeName}
+          onClose={() => setShowMembers(false)}
         />
       )}
     </>

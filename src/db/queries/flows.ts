@@ -46,6 +46,8 @@ export async function updateFlow(
     nodes: FlowNode[]
     edges: FlowEdge[]
     browsers: FlowBrowser[]
+    environmentId: string | null
+    timeoutMs: number
   }>
 ) {
   const rows = await db

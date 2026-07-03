@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { AlertTriangle } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -19,7 +19,7 @@ export default function UnsavedChangesDialog({ tabTitle, saving, saveError, onCa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
         <div className="flex items-center gap-2 border-b border-th-border px-5 py-3">
           <AlertTriangle size={14} className="shrink-0 text-amber-400" />
           <p className="text-sm font-semibold">{t('unsavedDialog.title')}</p>

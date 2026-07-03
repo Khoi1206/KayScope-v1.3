@@ -1,8 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { X, Plus, ChevronDown, Search, Inbox } from 'lucide-react'
+import { X, Plus, ChevronDown, Search, Inbox, RotateCcw, History } from 'lucide-react'
 import { useRequestStore } from '@/store/request.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { useWorkspaceStore, getWorkspaceHeaders } from '@/store/workspace.store'
@@ -14,16 +14,18 @@ import HeadersTab from './HeadersTab'
 import BodyTab from './BodyTab'
 import AuthTab from './AuthTab'
 import ScriptsTab from './ScriptsTab'
+import SettingsTab, { defaultSettings } from './SettingsTab'
 import ResponsePanel from '@/features/response-viewer/ResponsePanel'
 import { ResponseLoadingSkeleton } from '@/components/ui/Skeleton'
 import VariablesPanel from '@/features/variables/VariablesPanel'
 import UnsavedChangesDialog from './UnsavedChangesDialog'
 import SaveRequestModal from './SaveRequestModal'
+import RequestVersionsPanel from './RequestVersionsPanel'
 import CodeSnippetModal from '@/components/CodeSnippetModal'
 import { toServerScopes } from '@/core/interpolation/scope'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 
-type EditorTab = 'params' | 'headers' | 'body' | 'auth' | 'scripts' | 'variables'
+type EditorTab = 'params' | 'headers' | 'body' | 'auth' | 'scripts' | 'settings' | 'variables'
 
 function nanoidLocal() {
   return Math.random().toString(36).slice(2, 11)
@@ -53,6 +55,8 @@ export default function RequestEditorPane() {
     saveRequest,
     renameTab,
     attachRequest,
+    markClean,
+    restoreVersion,
   } = useRequestStore()
   const { environments, activeEnvironmentId, setActiveEnvironment, updateEnvironment } = useEnvironmentStore()
   const { workspace, activeWorkspaceId, updateGlobalVariables } = useWorkspaceStore()
@@ -69,8 +73,14 @@ export default function RequestEditorPane() {
   const [closeSaving, setCloseSaving] = useState(false)
   const [closeSaveError, setCloseSaveError] = useState<string | null>(null)
   const [saveModalForTabId, setSaveModalForTabId] = useState<string | null>(null)
+  const [showVersions, setShowVersions] = useState(false)
   const [pendingCloseNewTabId, setPendingCloseNewTabId] = useState<string | null>(null)
+  const [responseKey, setResponseKey] = useState(0)
   const handleSaveRef = useRef<() => void>(() => {})
+  const handleSendRef = useRef<() => void>(() => {})
+  const handleCloseTabRef = useRef<() => void>(() => {})
+  const handleNextTabRef = useRef<() => void>(() => {})
+  const handlePrevTabRef = useRef<() => void>(() => {})
   const tabListRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(() => { if (pendingCloseNewTabId) setPendingCloseNewTabId(null) })
@@ -191,6 +201,37 @@ export default function RequestEditorPane() {
     }
   }
 
+  function handleRevert() {
+    if (!activeTabId || !activeTab?.requestId || !activeTab.collectionId) return
+    const savedReq = (storeRequests[activeTab.collectionId] ?? []).find(r => r.id === activeTab.requestId)
+    if (!savedReq) return
+    updateSnapshot(activeTabId, {
+      method: savedReq.method || 'GET',
+      url: savedReq.url || '',
+      params: savedReq.params ?? [],
+      headers: savedReq.headers ?? [],
+      body: savedReq.body
+        ? { ...savedReq.body, content: savedReq.body.content ?? '' } as import('@/store/request.store').RequestBody
+        : { type: 'none', content: '' },
+      auth: savedReq.auth ?? { type: 'none' },
+      preRequestScript: savedReq.preRequestScript ?? '',
+      postRequestScript: savedReq.postRequestScript ?? '',
+    })
+    markClean(activeTabId)
+    setNameDraft(activeTab.title)
+  }
+
+  async function handleRestoreVersion(versionId: string) {
+    if (!activeTabId || !activeTab?.requestId) return
+    const restored = await restoreVersion(activeTab.requestId, versionId)
+    updateSnapshot(activeTabId, restored)
+    markClean(activeTabId)
+    // Keep the sidebar/breadcrumb cache in sync with the restored content
+    if (activeTab.collectionId) {
+      patchRequest(activeTab.requestId, activeTab.collectionId, restored)
+    }
+  }
+
   function newTab() {
     openTab({ id: nanoidLocal(), title: t('newTab') })
   }
@@ -200,6 +241,19 @@ export default function RequestEditorPane() {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         handleSaveRef.current()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleSendRef.current()
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'w') {
+        e.preventDefault()
+        handleCloseTabRef.current()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
+        e.preventDefault()
+        if (e.shiftKey) handlePrevTabRef.current()
+        else handleNextTabRef.current()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -220,6 +274,7 @@ export default function RequestEditorPane() {
         global: {},
       })
 
+      const settings = snap.settings ?? defaultSettings()
       const payload = {
         method: snap.method,
         url: snap.url,
@@ -234,6 +289,12 @@ export default function RequestEditorPane() {
         collectionId: activeTab?.collectionId ?? undefined,
         requestId: activeTab?.requestId ?? undefined,
         scopes: serverScopes,
+        timeout: settings.timeout,
+        followRedirects: settings.followRedirects,
+        maxRedirects: settings.maxRedirects,
+        sendCookies: settings.sendCookies,
+        saveCookies: settings.saveCookies,
+        sslVerify: settings.sslVerify,
       }
 
       const res = await fetch('/api/execute', {
@@ -252,6 +313,10 @@ export default function RequestEditorPane() {
           headers: data.headers ?? {},
           body: data.body ?? data.error ?? '',
           durationMs: data.durationMs ?? 0,
+          ttfbMs: data.ttfbMs,
+          downloadMs: data.downloadMs,
+          isBinary: data.isBinary,
+          cookies: data.cookies,
           size: data.size ?? 0,
           tests: data.tests,
           logs: data.logs,
@@ -271,6 +336,8 @@ export default function RequestEditorPane() {
           size: 0,
         },
       })
+    } finally {
+      setResponseKey(k => k + 1)
     }
   }
 
@@ -315,8 +382,31 @@ export default function RequestEditorPane() {
     }
   }
 
-  // Keep ref in sync so Ctrl+S always calls the latest handleSave
+  // Keep refs in sync to avoid stale closures in the keydown listener
   handleSaveRef.current = handleSave
+  handleSendRef.current = handleSend
+  handleCloseTabRef.current = () => {
+    if (!activeTabId) return
+    const tab = tabs.find(t => t.id === activeTabId)
+    if (!tab) return
+    if (tab.isDirty) {
+      if (tab.requestId) { setCloseSaveError(null); setPendingCloseTabId(tab.id) }
+      else if (isSnapshotModified(snapshots[tab.id])) { setPendingCloseNewTabId(tab.id) }
+      else { closeTab(tab.id) }
+    } else {
+      closeTab(tab.id)
+    }
+  }
+  handleNextTabRef.current = () => {
+    if (tabs.length < 2) return
+    const idx = tabs.findIndex(t => t.id === activeTabId)
+    setActiveTab(tabs[(idx + 1) % tabs.length]!.id)
+  }
+  handlePrevTabRef.current = () => {
+    if (tabs.length < 2) return
+    const idx = tabs.findIndex(t => t.id === activeTabId)
+    setActiveTab(tabs[(idx - 1 + tabs.length) % tabs.length]!.id)
+  }
 
   function isSnapshotModified(snap: (typeof snapshots)[string] | undefined): boolean {
     if (!snap) return false
@@ -368,12 +458,44 @@ export default function RequestEditorPane() {
     }
   }
 
+  const activeSettings = snap?.settings ?? defaultSettings()
+
+  // URL → Params sync: extract query params from pasted URL
+  function handleUrlChange(url: string) {
+    if (!activeTabId) return
+    const qIdx = url.indexOf('?')
+    if (qIdx !== -1) {
+      const baseUrl = url.slice(0, qIdx)
+      const qs = url.slice(qIdx + 1)
+      const newParams = qs.split('&').filter(Boolean).map(pair => {
+        const eqIdx = pair.indexOf('=')
+        try {
+          if (eqIdx === -1) return { key: decodeURIComponent(pair.replace(/\+/g, ' ')), value: '', enabled: true }
+          return {
+            key: decodeURIComponent(pair.slice(0, eqIdx).replace(/\+/g, ' ')),
+            value: decodeURIComponent(pair.slice(eqIdx + 1).replace(/\+/g, ' ')),
+            enabled: true,
+          }
+        } catch {
+          return { key: pair, value: '', enabled: true }
+        }
+      })
+      const existing = snap?.params ?? []
+      // Keep disabled params, merge with new enabled params
+      const disabled = existing.filter(p => !p.enabled)
+      updateSnapshot(activeTabId, { url: baseUrl, params: [...newParams, ...disabled] })
+    } else {
+      updateSnapshot(activeTabId, { url })
+    }
+  }
+
   const tabHasContent: Partial<Record<EditorTab, boolean>> = snap ? {
     params: snap.params.some(p => p.enabled && p.key),
     headers: snap.headers.some(h => h.enabled && h.key),
     body: snap.body.type !== 'none',
     auth: snap.auth.type !== 'none',
     scripts: !!(snap.preRequestScript?.trim() || snap.postRequestScript?.trim()),
+    settings: !!(snap.settings),
   } : {}
 
   const EDITOR_TABS: { key: EditorTab; label: string }[] = [
@@ -382,6 +504,7 @@ export default function RequestEditorPane() {
     { key: 'body', label: t('tabs.body') },
     { key: 'auth', label: t('tabs.auth') },
     { key: 'scripts', label: t('tabs.scripts') },
+    { key: 'settings', label: 'Settings' },
     { key: 'variables', label: t('tabs.variables') },
   ]
 
@@ -417,7 +540,12 @@ export default function RequestEditorPane() {
               >
                 <span className={cn('shrink-0 text-[10px] font-bold', methodColor)}>{method}</span>
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
-                {tab.isDirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-th-accent" />}
+                {tab.isDirty && (
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-th-accent"
+                    title="Unsaved changes — Ctrl+S to save"
+                  />
+                )}
                 <button
                   onClick={e => {
                     e.stopPropagation()
@@ -460,15 +588,15 @@ export default function RequestEditorPane() {
               onClick={() => { setShowTabList(v => !v); setTabListSearch('') }}
               title="All tabs"
               className={cn(
-                'flex h-full items-center px-2 text-th-fg-muted transition-colors hover:bg-th-bg/50 hover:text-th-fg',
-                showTabList && 'bg-th-bg text-th-fg'
+                'flex h-full items-center px-2 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg',
+                showTabList && 'bg-th-surface-hover text-th-fg'
               )}
             >
               <ChevronDown size={13} />
             </button>
 
             {showTabList && (
-              <div className="absolute right-0 top-full z-50 w-72 rounded-b-md border border-th-border bg-th-surface shadow-lg">
+              <div className="absolute right-0 top-full z-50 w-72 rounded-b-xl border border-th-border bg-th-surface shadow-xl">
                 {/* Search */}
                 <div className="flex items-center gap-2 border-b border-th-border px-3 py-2">
                   <Search size={12} className="shrink-0 text-th-fg-muted" />
@@ -526,7 +654,7 @@ export default function RequestEditorPane() {
             <select
               value={activeEnvironmentId ?? ''}
               onChange={e => setActiveEnvironment(e.target.value || null)}
-              className="min-w-0 flex-1 rounded border border-th-border bg-th-input px-1.5 py-0.5 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
+              className="min-w-0 flex-1 rounded-lg border border-th-border bg-th-input px-1.5 py-0.5 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
             >
               <option value="">{tn('noEnvironment')}</option>
               {environments.map(env => (
@@ -559,7 +687,7 @@ export default function RequestEditorPane() {
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Request name header with breadcrumb */}
-          <div className="flex items-center gap-1.5 border-b border-th-border bg-th-surface px-3 py-1.5">
+          <div className="flex items-center gap-1.5 border-b border-th-border bg-th-bg px-3 py-1.5">
             {activeCollection && (() => {
               const reqInStore = (storeRequests[activeCollection.id] ?? []).find(r => r.id === activeTab?.requestId)
               const folder = reqInStore?.folderId
@@ -590,6 +718,25 @@ export default function RequestEditorPane() {
               placeholder="Untitled Request"
               className="max-w-[220px] rounded border border-transparent bg-transparent px-2 py-0.5 text-sm font-medium text-th-fg placeholder:text-th-fg-subtle hover:border-th-border focus:border-th-accent focus:bg-th-input focus:outline-none focus:ring-1 focus:ring-th-accent/50 truncate"
             />
+            {activeTab?.isDirty && activeTab.requestId && (
+              <button
+                onClick={handleRevert}
+                title="Revert to last saved state"
+                className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+              >
+                <RotateCcw size={11} />
+                <span>Revert</span>
+              </button>
+            )}
+            {activeTab?.requestId && (
+              <button
+                onClick={() => setShowVersions(true)}
+                title={t('versionsHint')}
+                className="ml-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+              >
+                <History size={11} />
+              </button>
+            )}
           </div>
 
           {/* URL bar */}
@@ -597,7 +744,7 @@ export default function RequestEditorPane() {
             method={snap.method}
             url={snap.url}
             onMethodChange={method => updateSnapshot(activeTabId!, { method })}
-            onUrlChange={url => updateSnapshot(activeTabId!, { url })}
+            onUrlChange={handleUrlChange}
             onSend={handleSend}
             sending={snap.sending}
             localScope={snap.localScope}
@@ -623,24 +770,22 @@ export default function RequestEditorPane() {
             {/* Request editor (top) */}
             <div className="flex flex-col overflow-hidden" style={{ flex: `0 0 ${(1 - responseRatio) * 100}%`, minHeight: 100 }}>
               {/* Editor tab bar */}
-              <div className="flex gap-0 border-b border-th-border bg-th-surface px-3">
+              <div className="flex items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
                 {EDITOR_TABS.map(({ key, label }) => (
                   <button
                     key={key}
                     onClick={() => setEditorTab(key)}
                     className={cn(
-                      'relative px-3 py-2 text-xs font-medium transition-colors',
+                      'flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150',
                       editorTab === key
-                        ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-th-accent'
-                        : 'text-th-fg-muted hover:text-th-fg'
+                        ? 'bg-th-bg text-th-fg shadow-sm'
+                        : 'text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg'
                     )}
                   >
-                    <span className="relative inline-flex items-center gap-1">
-                      {label}
-                      {tabHasContent[key] && (
-                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-th-accent" />
-                      )}
-                    </span>
+                    {label}
+                    {tabHasContent[key] && (
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-th-accent" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -707,6 +852,9 @@ export default function RequestEditorPane() {
                     environmentName={activeEnv?.name}
                     onSaveVar={onSaveVar}
                     onNavigateToVariables={() => setEditorTab('variables')}
+                    onLocalScopeSet={(key, value) => updateSnapshot(activeTabId!, {
+                      localScope: { ...(snapshots[activeTabId!]?.localScope ?? {}), [key]: value },
+                    })}
                   />
                 )}
                 {editorTab === 'scripts' && (
@@ -715,6 +863,12 @@ export default function RequestEditorPane() {
                     postRequestScript={snap.postRequestScript}
                     onPreChange={v => updateSnapshot(activeTabId!, { preRequestScript: v })}
                     onPostChange={v => updateSnapshot(activeTabId!, { postRequestScript: v })}
+                  />
+                )}
+                {editorTab === 'settings' && (
+                  <SettingsTab
+                    settings={activeSettings}
+                    onChange={settings => updateSnapshot(activeTabId!, { settings })}
                   />
                 )}
                 {editorTab === 'variables' && (
@@ -735,21 +889,17 @@ export default function RequestEditorPane() {
             {/* Horizontal resize handle */}
             <div
               onMouseDown={e => { e.preventDefault(); setIsResizingResponse(true) }}
-              className={cn(
-                'relative h-2 shrink-0 cursor-row-resize border-t border-th-border transition-colors',
-                isResizingResponse ? 'bg-th-accent/20' : 'hover:bg-th-accent/10'
-              )}
+              className="group relative h-1 shrink-0 cursor-row-resize"
             >
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-[3px] opacity-40">
-                {[0, 1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="h-[3px] w-[3px] rounded-full bg-th-fg-muted" />
-                ))}
-              </div>
+              <div className={cn(
+                'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+                isResizingResponse ? 'bg-th-accent' : 'bg-th-border group-hover:bg-th-accent'
+              )} />
             </div>
             {/* Response panel (bottom) */}
             <div className="flex flex-col overflow-hidden" style={{ flex: `0 0 ${responseRatio * 100}%`, minHeight: 100 }}>
               {snap.response ? (
-                <ResponsePanel response={snap.response} requestId={activeTab?.requestId} requestName={activeTab?.title} />
+                <ResponsePanel response={snap.response} requestId={activeTab?.requestId} requestName={activeTab?.title} responseKey={responseKey} />
               ) : snap.sending ? (
                 <ResponseLoadingSkeleton />
               ) : (
@@ -811,7 +961,7 @@ export default function RequestEditorPane() {
         const pendingTab = tabs.find(t => t.id === pendingCloseNewTabId)
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+            <div className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
               <div className="flex items-center gap-2 border-b border-th-border px-5 py-3">
                 <p className="text-sm font-semibold">{t('newTabDialog.title')}</p>
               </div>
@@ -890,6 +1040,15 @@ export default function RequestEditorPane() {
             auth: snap.auth,
           }}
           onClose={() => setShowSnippet(false)}
+        />
+      )}
+
+      {showVersions && activeTab?.requestId && snap && (
+        <RequestVersionsPanel
+          requestId={activeTab.requestId}
+          snapshot={snap}
+          onRestore={handleRestoreVersion}
+          onClose={() => setShowVersions(false)}
         />
       )}
     </div>

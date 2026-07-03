@@ -2,47 +2,30 @@ import { test, expect, type Page } from '@playwright/test'
 
 const PASSWORD = 'E2eTest!2025'
 
+/** Register a new user and land on the dashboard. Uses stable element IDs. */
 async function registerAndLogin(page: Page): Promise<string> {
   const email = `e2e-req-${Date.now()}@example.com`
   await page.goto('/en/register')
-  await page.getByLabel(/email/i).fill(email)
-  await page.getByLabel(/password/i).first().fill(PASSWORD)
-  const confirm = page.getByLabel(/confirm/i)
-  if (await confirm.isVisible()) await confirm.fill(PASSWORD)
-  await page.getByRole('button', { name: /register|sign up|tạo tài khoản/i }).click()
-  await page.waitForURL(/(dashboard|login)/, { timeout: 15_000 })
-
-  if (page.url().includes('login')) {
-    await page.getByLabel(/email/i).fill(email)
-    await page.getByLabel(/password/i).fill(PASSWORD)
-    await page.getByRole('button', { name: /sign in|login/i }).click()
-    await page.waitForURL(/dashboard/, { timeout: 15_000 })
-  }
+  await page.locator('#name').fill('E2E Test User')
+  await page.locator('#email').fill(email)
+  await page.locator('#password').fill(PASSWORD)
+  await page.getByRole('button', { name: /create account|tạo tài khoản/i }).click()
+  await page.waitForURL(/dashboard/, { timeout: 15_000 })
   return email
 }
 
 test.describe('Request editor flow', () => {
   test('dashboard loads with sidebar and editor', async ({ page }) => {
     await registerAndLogin(page)
-    await page.waitForURL(/dashboard/, { timeout: 15_000 })
 
     // Sidebar should be visible
     await expect(page.locator('aside')).toBeVisible()
-    // New request tab should be open by default or there should be a + button
-    const plusBtn = page.getByTitle(/new tab|new request/i)
-    if (await plusBtn.isVisible()) {
-      await expect(plusBtn).toBeVisible()
-    }
   })
 
   test('can open a new request tab', async ({ page }) => {
     await registerAndLogin(page)
-    // Click the + button to open a new tab
-    const plusBtn = page.locator('button[title*="New"], button[title*="Tab"]').first()
-    if (await plusBtn.isVisible()) {
-      await plusBtn.click()
-    }
-    // URL bar should be visible
+
+    // URL bar input should be visible (a default tab is opened)
     await expect(page.locator('input[placeholder*="https"]')).toBeVisible({ timeout: 8_000 })
   })
 
@@ -74,28 +57,23 @@ test.describe('Request editor flow', () => {
     await expect(page.locator('pre')).toBeVisible()
 
     // cURL output should contain the URL
-    const pre = page.locator('pre')
-    await expect(pre).toContainText('https://api.example.com/test')
+    await expect(page.locator('pre')).toContainText('https://api.example.com/test')
   })
 
   test('can create a collection', async ({ page }) => {
     await registerAndLogin(page)
 
-    // Click the + button in collections header
-    const newColBtn = page.locator('button[title*="New Collection"], button[title*="collection"]').first()
-    if (await newColBtn.isVisible()) {
+    // Click the + button in collections header (New Collection)
+    const newColBtn = page.locator('button[title="New Collection"]').first()
+    if (await newColBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await newColBtn.click()
-    } else {
-      // Use More menu → import or create
-      const moreBtn = page.locator('aside button[title*="More"]').first()
-      if (await moreBtn.isVisible()) await moreBtn.click()
     }
 
-    // Modal/prompt for collection name
+    // InputModal dialog appears — fill the name input
     const nameInput = page.locator('dialog input, [role="dialog"] input').first()
     if (await nameInput.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await nameInput.fill('My E2E Collection')
-      await page.getByRole('button', { name: /create|confirm/i }).click()
+      await page.getByRole('button', { name: /create|confirm|ok/i }).last().click()
       // Collection should appear in sidebar
       await expect(page.getByText('My E2E Collection')).toBeVisible({ timeout: 8_000 })
     }
@@ -103,9 +81,9 @@ test.describe('Request editor flow', () => {
 
   test('environment section is accessible', async ({ page }) => {
     await registerAndLogin(page)
-    // Click the environments nav tab (Layers icon)
+    // Click the environments nav tab (Layers icon) in sidebar
     const envTab = page.locator('aside button[title*="nvironment"]').first()
-    if (await envTab.isVisible()) {
+    if (await envTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await envTab.click()
       await expect(page.locator('aside')).toContainText(/environment|No environment/i)
     }
@@ -114,17 +92,16 @@ test.describe('Request editor flow', () => {
   test('search input filters collections', async ({ page }) => {
     await registerAndLogin(page)
 
-    const searchInput = page.locator('aside input[placeholder*="Search"]')
+    const searchInput = page.locator('aside input[type="text"]').first()
     await searchInput.waitFor({ state: 'visible', timeout: 8_000 })
     await searchInput.fill('nonexistent-search-xyz')
-    // With a search term that matches nothing, the tree should be empty or show nothing
-    // Just verify the input accepted the text
+
+    // Input accepted the text
     await expect(searchInput).toHaveValue('nonexistent-search-xyz')
 
-    // Clear button should appear
-    const clearBtn = searchInput.locator('.. button')
-    // Just verify the input works without error
+    // Clear input
     await searchInput.fill('')
+    await expect(searchInput).toHaveValue('')
   })
 })
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { X } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import { useFlowStore, type FlowItem, type FlowRunSummaryItem } from '@/store/flow.store'
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
+  const t = useTranslations('flows')
   const { recentRuns, fetchRecentRuns } = useFlowStore()
   const runs = recentRuns[flow.id] ?? []
 
@@ -44,13 +46,23 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
     ? Math.round(completedRuns.reduce((s, r) => s + r.summary.duration, 0) / completedRuns.length)
     : null
 
+  function statusLabel(status: FlowRunSummaryItem['status']) {
+    switch (status) {
+      case 'passed': return t('report.passed')
+      case 'failed': return t('report.failed')
+      case 'errored': return t('report.errored')
+      case 'timedOut': return t('report.timedOut')
+      default: return t('report.runningStatus')
+    }
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-        <div className="flex h-[75vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+        <div className="flex h-[75vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
           <div className="flex shrink-0 items-center justify-between border-b border-th-border px-5 py-3">
             <div>
-              <p className="text-xs text-th-fg-muted">Flow Run History</p>
+              <p className="text-xs text-th-fg-muted">{t('report.title')}</p>
               <p className="text-sm font-semibold text-th-fg">{flow.name}</p>
             </div>
             <button onClick={onClose} className="rounded p-1.5 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg">
@@ -61,29 +73,29 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
           {completedRuns.length > 0 && (
             <div className="shrink-0 border-b border-th-border bg-th-surface px-5 py-2">
               <p className="text-xs text-th-fg-muted">
-                {completedRuns.length} run{completedRuns.length !== 1 ? 's' : ''}
-                &nbsp;·&nbsp;<span className="text-green-400">{passedCount} passed</span>
-                &nbsp;·&nbsp;<span className={completedRuns.length - passedCount > 0 ? 'text-red-400' : 'text-th-fg-muted'}>{completedRuns.length - passedCount} failed</span>
-                {passRate !== null && <>&nbsp;·&nbsp;Pass rate: {passRate}%</>}
-                {avgDuration !== null && <>&nbsp;·&nbsp;Avg: {avgDuration}ms</>}
+                {completedRuns.length} {t('report.runsLabel')}
+                &nbsp;·&nbsp;<span className="text-green-400">{passedCount} {t('report.passed').toLowerCase()}</span>
+                &nbsp;·&nbsp;<span className={completedRuns.length - passedCount > 0 ? 'text-red-400' : 'text-th-fg-muted'}>{completedRuns.length - passedCount} {t('report.failed').toLowerCase()}</span>
+                {passRate !== null && <>&nbsp;·&nbsp;{t('report.passRate')}: {passRate}%</>}
+                {avgDuration !== null && <>&nbsp;·&nbsp;{t('report.avgDuration')}: {avgDuration}ms</>}
               </p>
             </div>
           )}
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {runs.length === 0 ? (
-              <p className="text-xs text-th-fg-subtle">No runs yet. Click Run in the flow editor to execute this flow.</p>
+              <p className="text-xs text-th-fg-subtle">{t('report.noRuns')}</p>
             ) : (
               <div className="rounded-md border border-th-border overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-th-surface text-th-fg-muted">
-                      <th className="px-3 py-2 text-left font-medium">Run</th>
-                      <th className="px-3 py-2 text-left font-medium">Status</th>
-                      <th className="px-3 py-2 text-right font-medium">Passed</th>
-                      <th className="px-3 py-2 text-right font-medium">Failed</th>
-                      <th className="px-3 py-2 text-right font-medium">Duration</th>
-                      <th className="px-3 py-2 text-left font-medium">Run at</th>
+                      <th className="px-3 py-2 text-left font-medium">{t('run')}</th>
+                      <th className="px-3 py-2 text-left font-medium">{t('report.status')}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t('report.passed')}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t('report.failed')}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t('report.duration')}</th>
+                      <th className="px-3 py-2 text-left font-medium">{t('report.triggeredAt')}</th>
                       <th className="px-3 py-2" />
                     </tr>
                   </thead>
@@ -97,9 +109,10 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
                             run.status === 'passed' && 'bg-green-500/15 text-green-400',
                             run.status === 'failed' && 'bg-red-500/15 text-red-400',
                             run.status === 'errored' && 'bg-yellow-500/15 text-yellow-400',
+                            run.status === 'timedOut' && 'bg-orange-500/15 text-orange-400',
                             run.status === 'running' && 'bg-th-surface text-th-fg-muted',
                           )}>
-                            {run.status === 'passed' ? 'Passed' : run.status === 'failed' ? 'Failed' : run.status === 'errored' ? 'Error' : 'Running'}
+                            {statusLabel(run.status)}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right text-green-400">{run.summary.passed}</td>
@@ -114,7 +127,7 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
                             disabled={loadingId === run.id}
                             className="rounded px-2 py-0.5 text-th-accent hover:underline disabled:opacity-50"
                           >
-                            {loadingId === run.id ? '…' : 'View'}
+                            {loadingId === run.id ? '…' : t('report.view')}
                           </button>
                         </td>
                       </tr>
@@ -130,9 +143,9 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
       {/* Detail modal for a specific run */}
       {viewingRun && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
-          <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+          <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-th-border px-5 py-3">
-              <p className="text-sm font-semibold text-th-fg">{flow.name} — Run Details</p>
+              <p className="text-sm font-semibold text-th-fg">{flow.name} — {t('report.runDetails')}</p>
               <button onClick={() => setViewingRun(null)} className="rounded p-1.5 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg">
                 <X size={15} />
               </button>
@@ -140,6 +153,7 @@ export default function FlowRunHistoryPanel({ flow, onClose }: Props) {
             <div className="flex-1 overflow-hidden">
               <FlowResultsPanel
                 result={viewingRun.result}
+                runId={viewingRun.record.id}
                 onClose={() => setViewingRun(null)}
               />
             </div>

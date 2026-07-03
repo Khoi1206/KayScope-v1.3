@@ -25,19 +25,43 @@ const variableSchema = z.object({
 })
 
 const reqBodySchema = z.object({
-  type: z.enum(['none', 'json', 'raw', 'form-data', 'x-www-form-urlencoded']),
+  type: z.enum(['none', 'json', 'raw', 'form-data', 'x-www-form-urlencoded', 'graphql']),
   content: z.string().default(''),
   formData: z.array(kvPairSchema).max(100).optional(),
   rawType: z.enum(['text', 'json', 'javascript', 'html', 'xml']).optional(),
+  graphqlQuery: z.string().optional(),
+  graphqlVariables: z.string().optional(),
+  graphqlOperationName: z.string().optional(),
 })
 
 const reqAuthSchema = z.object({
-  type: z.enum(['none', 'bearer', 'basic', 'api-key']),
+  type: z.enum(['none', 'bearer', 'basic', 'api-key', 'oauth2', 'oauth1', 'aws-sig-v4']),
   token: z.string().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   apiKey: z.string().optional(),
   apiKeyHeader: z.string().optional(),
+  oauth2GrantType: z.enum(['client_credentials', 'password', 'authorization_code']).optional(),
+  oauth2TokenUrl: z.string().optional(),
+  oauth2ClientId: z.string().optional(),
+  oauth2ClientSecret: z.string().optional(),
+  oauth2Scope: z.string().optional(),
+  oauth2ClientAuth: z.enum(['body', 'basic_header']).optional(),
+  oauth2Username: z.string().optional(),
+  oauth2Password: z.string().optional(),
+  oauth2AuthUrl: z.string().optional(),
+  oauth2RedirectUri: z.string().optional(),
+  oauth1ConsumerKey: z.string().optional(),
+  oauth1ConsumerSecret: z.string().optional(),
+  oauth1Token: z.string().optional(),
+  oauth1TokenSecret: z.string().optional(),
+  oauth1SignatureMethod: z.enum(['HMAC-SHA1', 'HMAC-SHA256']).optional(),
+  oauth1Realm: z.string().optional(),
+  awsAccessKeyId: z.string().optional(),
+  awsSecretAccessKey: z.string().optional(),
+  awsSessionToken: z.string().optional(),
+  awsRegion: z.string().optional(),
+  awsService: z.string().optional(),
 })
 
 // ── Auth ───────────────────────────────────────────────────────────────────
@@ -59,6 +83,8 @@ export const updateCollectionSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(1000).optional(),
   variables: z.array(variableSchema).max(200).optional(),
+  preRequestScript: z.string().max(10_000).optional(),
+  postRequestScript: z.string().max(10_000).optional(),
 })
 
 // ── Folders ────────────────────────────────────────────────────────────────
@@ -71,6 +97,7 @@ export const createFolderSchema = z.object({
 
 export const updateFolderSchema = z.object({
   name: nonEmpty.max(200),
+  parentFolderId: z.string().nullable().optional(),
 })
 
 // ── Requests ───────────────────────────────────────────────────────────────
@@ -101,6 +128,24 @@ export const updateRequestSchema = z.object({
   preRequestScript: z.string().optional(),
   postRequestScript: z.string().optional(),
 })
+
+export const createRequestVersionSchema = z.object({
+  label: z.string().trim().max(200).optional(),
+  method: z.enum(HTTP_METHODS),
+  url: z.string(),
+  params: z.array(kvPairSchema).max(100).default([]),
+  headers: z.array(kvPairSchema).max(100).default([]),
+  body: reqBodySchema,
+  auth: reqAuthSchema,
+  preRequestScript: z.string().default(''),
+  postRequestScript: z.string().default(''),
+})
+
+export const requestVersionsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+})
+
+export type CreateRequestVersionInput = z.infer<typeof createRequestVersionSchema>
 
 // ── Environments ───────────────────────────────────────────────────────────
 
@@ -136,6 +181,17 @@ export const updateWorkspaceSchema = z.object({
   activeEnvironmentId: z.string().nullable().optional(),
 })
 
+const workspaceRoleEnum = z.enum(['admin', 'editor', 'viewer'])
+
+export const inviteMemberSchema = z.object({
+  email: z.string().trim().email(),
+  role: workspaceRoleEnum,
+})
+
+export const updateMemberRoleSchema = z.object({
+  role: workspaceRoleEnum,
+})
+
 // ── Execute ────────────────────────────────────────────────────────────────
 
 export const executeSchema = z.object({
@@ -155,6 +211,13 @@ export const executeSchema = z.object({
     local: z.record(z.string()).optional(),
     data: z.record(z.string()).optional(),
   }).optional(),
+  // Per-request execution settings
+  timeout: z.number().int().min(1000).max(300_000).optional(),
+  followRedirects: z.boolean().optional(),
+  maxRedirects: z.number().int().min(0).max(20).optional(),
+  sendCookies: z.boolean().optional(),
+  saveCookies: z.boolean().optional(),
+  sslVerify: z.boolean().optional(),
 })
 
 export type ExecuteInput = z.infer<typeof executeSchema>
@@ -200,9 +263,10 @@ const nodeTypeEnum = z.enum([
   'navigate',
   'click_text', 'click_role', 'click_placeholder', 'click_title', 'hover_text',
   'fill_placeholder', 'fill_label', 'select_option',
-  'assert_url', 'assert_visible', 'assert_not_visible', 'assert_value',
+  'assert_url', 'assert_visible', 'assert_not_visible', 'assert_value', 'assert_api_response',
   'wait_ms', 'wait_selector',
   'screenshot',
+  'press_key', 'handle_dialog', 'upload_file', 'drag_drop', 'click_new_tab',
 ])
 
 const flowNodeDataSchema = z.object({
@@ -220,16 +284,26 @@ const flowNodeDataSchema = z.object({
   screenshotName: z.string().optional(),
   title: z.string().optional(),
   option: z.string().optional(),
+  testId: z.string().optional(),
+  selector: z.string().optional(),
+  frameSelector: z.string().optional(),
+  key: z.string().optional(),
+  dialogAction: z.enum(['accept', 'dismiss']).optional(),
+  promptText: z.string().optional(),
+  filePath: z.string().optional(),
+  targetSelector: z.string().optional(),
+  apiUrlPattern: z.string().optional(),
+  apiExpectedStatus: z.number().int().min(100).max(599).optional(),
 })
 
-const flowNodeSchema = z.object({
+export const flowNodeSchema = z.object({
   id: nonEmpty,
   type: z.literal('action'),
   position: z.object({ x: z.number(), y: z.number() }),
   data: flowNodeDataSchema,
 })
 
-const flowEdgeSchema = z.object({
+export const flowEdgeSchema = z.object({
   id: nonEmpty,
   source: nonEmpty,
   target: nonEmpty,
@@ -255,14 +329,28 @@ export const updateFlowSchema = z.object({
   nodes: z.array(flowNodeSchema).max(200).optional(),
   edges: z.array(flowEdgeSchema).max(500).optional(),
   browsers: z.array(flowBrowserEnum).min(1).max(3).optional(),
+  environmentId: z.string().nullable().optional(),
+  // 5s to 10min — a flow with many nodes/browsers may legitimately need longer than the 120s default.
+  timeoutMs: z.number().int().min(5_000).max(600_000).optional(),
 })
 
 export const flowRunsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })
 
+export const createFlowVersionSchema = z.object({
+  label: z.string().trim().max(200).optional(),
+  nodes: z.array(flowNodeSchema).max(200),
+  edges: z.array(flowEdgeSchema).max(500),
+})
+
+export const flowVersionsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+})
+
 export type CreateFlowInput = z.infer<typeof createFlowSchema>
 export type UpdateFlowInput = z.infer<typeof updateFlowSchema>
+export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>
 
 // ── Examples ───────────────────────────────────────────────────────────────
 

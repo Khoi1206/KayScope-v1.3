@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type SidebarSection = 'collections' | 'environments' | 'history' | 'globals' | 'tests' | 'flows'
+export type SidebarSection = 'collections' | 'environments' | 'history' | 'globals' | 'tests' | 'flows' | 'cookies'
 
 interface UiStore {
   sidebarSection: SidebarSection

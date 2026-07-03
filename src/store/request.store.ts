@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { useFlowStore } from '@/store/flow.store'
+import { getWorkspaceHeaders } from '@/store/workspace.store'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,19 +16,54 @@ export interface KVPair {
 }
 
 export interface RequestBody {
-  type: 'none' | 'json' | 'raw' | 'form-data' | 'x-www-form-urlencoded'
+  type: 'none' | 'json' | 'raw' | 'form-data' | 'x-www-form-urlencoded' | 'graphql'
   content: string
   formData?: KVPair[]
   rawType?: 'text' | 'json' | 'javascript' | 'html' | 'xml'
+  graphqlQuery?: string
+  graphqlVariables?: string
+  graphqlOperationName?: string
 }
 
 export interface RequestAuth {
-  type: 'none' | 'bearer' | 'basic' | 'api-key'
+  type: 'none' | 'bearer' | 'basic' | 'api-key' | 'oauth2' | 'oauth1' | 'aws-sig-v4'
   token?: string
   username?: string
   password?: string
   apiKey?: string
   apiKeyHeader?: string
+  oauth2GrantType?: 'client_credentials' | 'password' | 'authorization_code'
+  oauth2TokenUrl?: string
+  oauth2ClientId?: string
+  oauth2ClientSecret?: string
+  oauth2Scope?: string
+  oauth2ClientAuth?: 'body' | 'basic_header'
+  oauth2Username?: string
+  oauth2Password?: string
+  oauth2AuthUrl?: string
+  oauth2RedirectUri?: string
+  oauth1ConsumerKey?: string
+  oauth1ConsumerSecret?: string
+  oauth1Token?: string
+  oauth1TokenSecret?: string
+  oauth1SignatureMethod?: 'HMAC-SHA1' | 'HMAC-SHA256'
+  oauth1Realm?: string
+  awsAccessKeyId?: string
+  awsSecretAccessKey?: string
+  awsSessionToken?: string
+  awsRegion?: string
+  awsService?: string
+}
+
+export interface ResponseCookie {
+  name: string
+  value: string
+  domain: string
+  path: string
+  expires: string | null
+  httpOnly: boolean
+  secure: boolean
+  sameSite: string | null
 }
 
 export interface ResponseData {
@@ -37,10 +73,23 @@ export interface ResponseData {
   body: string
   durationMs: number
   size: number
+  ttfbMs?: number
+  downloadMs?: number
+  isBinary?: boolean
+  cookies?: ResponseCookie[]
   tests?: Array<{ name: string; passed: boolean; error?: string }>
   logs?: string[]
   preScriptError?: string
   postScriptError?: string
+}
+
+export interface RequestSettings {
+  timeout: number         // ms, default 30000
+  followRedirects: boolean
+  maxRedirects: number    // default 10
+  sendCookies: boolean    // attach cookie jar cookies to outgoing request, default true
+  saveCookies: boolean    // persist Set-Cookie from response into cookie jar, default true
+  sslVerify: boolean      // verify TLS certificates, default true
 }
 
 export interface TabSnapshot {
@@ -53,12 +102,31 @@ export interface TabSnapshot {
   auth: RequestAuth
   preRequestScript: string
   postRequestScript: string
+  // Per-request settings
+  settings?: RequestSettings
   // Local scope overrides
   localScope: Record<string, string>
   // Response (null when not yet sent)
   response: ResponseData | null
   // Loading state
   sending: boolean
+}
+
+export interface RequestVersionItem {
+  id: string
+  workspaceId: string
+  requestId: string
+  label: string | null
+  method: string
+  url: string
+  params: KVPair[]
+  headers: KVPair[]
+  body: RequestBody
+  auth: RequestAuth
+  preRequestScript: string
+  postRequestScript: string
+  createdBy: string
+  createdAt: string
 }
 
 export interface TabMeta {
@@ -94,6 +162,8 @@ interface RequestStore {
   tabs: TabMeta[]
   snapshots: Record<string, TabSnapshot>
   activeTabId: string | null
+  // Per-request saved canvas versions (manual snapshots, restorable)
+  versions: Record<string, RequestVersionItem[]>
 
   // Tab management
   openTab: (meta: Partial<TabMeta> & { id: string }, snapshot?: Partial<TabSnapshot>) => void
@@ -111,6 +181,15 @@ interface RequestStore {
   // Convenience
   activeSnapshot: () => TabSnapshot | null
 
+  // Version history
+  fetchVersions: (requestId: string) => Promise<void>
+  saveVersion: (requestId: string, label: string | undefined, snapshot: TabSnapshot) => Promise<void>
+  restoreVersion: (requestId: string, versionId: string) => Promise<{
+    method: string; url: string; params: KVPair[]; headers: KVPair[]
+    body: RequestBody; auth: RequestAuth; preRequestScript: string; postRequestScript: string
+  }>
+  deleteVersion: (requestId: string, versionId: string) => Promise<void>
+
   // Per-workspace tab persistence
   saveTabsForWorkspace: (workspaceId: string) => void
   loadTabsForWorkspace: (workspaceId: string) => void
@@ -124,6 +203,7 @@ export const useRequestStore = create<RequestStore>()(
       tabs: [],
       snapshots: {},
       activeTabId: null,
+      versions: {},
 
       openTab: (meta, snapshot) => {
         // Opening a request tab dismisses the flow canvas
@@ -253,6 +333,66 @@ export const useRequestStore = create<RequestStore>()(
       activeSnapshot: () => {
         const id = get().activeTabId
         return id ? (get().snapshots[id] ?? null) : null
+      },
+
+      fetchVersions: async (requestId) => {
+        try {
+          const res = await fetch(`/api/requests/${requestId}/versions`, { headers: getWorkspaceHeaders() })
+          const data = await res.json()
+          if (!res.ok) return
+          set(s => ({ versions: { ...s.versions, [requestId]: data as RequestVersionItem[] } }))
+        } catch {
+          // Non-critical; silently ignore
+        }
+      },
+
+      saveVersion: async (requestId, label, snapshot) => {
+        const res = await fetch(`/api/requests/${requestId}/versions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
+          body: JSON.stringify({
+            label,
+            method: snapshot.method,
+            url: snapshot.url,
+            params: snapshot.params,
+            headers: snapshot.headers,
+            body: snapshot.body,
+            auth: snapshot.auth,
+            preRequestScript: snapshot.preRequestScript,
+            postRequestScript: snapshot.postRequestScript,
+          }),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? 'Failed to save version')
+        set(s => ({ versions: { ...s.versions, [requestId]: [json as RequestVersionItem, ...(s.versions[requestId] ?? [])] } }))
+      },
+
+      restoreVersion: async (requestId, versionId) => {
+        const res = await fetch(`/api/requests/${requestId}/versions/${versionId}/restore`, {
+          method: 'POST',
+          headers: getWorkspaceHeaders(),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? 'Failed to restore version')
+        return {
+          method: json.method,
+          url: json.url,
+          params: json.params ?? [],
+          headers: json.headers ?? [],
+          body: json.body ?? { type: 'none', content: '' },
+          auth: json.auth ?? { type: 'none' },
+          preRequestScript: json.preRequestScript ?? '',
+          postRequestScript: json.postRequestScript ?? '',
+        }
+      },
+
+      deleteVersion: async (requestId, versionId) => {
+        const res = await fetch(`/api/requests/${requestId}/versions/${versionId}`, { method: 'DELETE', headers: getWorkspaceHeaders() })
+        if (!res.ok) {
+          const json = await res.json()
+          throw new Error(json.error ?? 'Failed to delete version')
+        }
+        set(s => ({ versions: { ...s.versions, [requestId]: (s.versions[requestId] ?? []).filter(v => v.id !== versionId) } }))
       },
 
       saveTabsForWorkspace: (workspaceId) => {

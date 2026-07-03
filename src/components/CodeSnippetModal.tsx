@@ -36,7 +36,7 @@ export default function CodeSnippetModal({ input, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="flex w-full max-w-2xl flex-col rounded-lg border border-th-border bg-th-bg shadow-2xl"
+        className="flex w-full max-w-2xl flex-col rounded-xl border border-th-border bg-th-bg shadow-2xl"
         style={{ maxHeight: '80vh' }}
         onClick={e => e.stopPropagation()}
       >

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { FolderOpen, Layers, History, Plus, Pencil, Trash2, Globe, MoreHorizontal, Upload, Download, FlaskConical, Workflow, Search, X } from 'lucide-react'
-import { useUiStore, type SidebarSection } from '@/store/ui.store'
+import { Plus, Pencil, Trash2, MoreHorizontal, Upload, Download, Search, X, Copy } from 'lucide-react'
+import { useUiStore } from '@/store/ui.store'
 import { useCollectionStore } from '@/store/collection.store'
 import { useEnvironmentStore, type EnvironmentItem } from '@/store/environment.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
@@ -14,8 +14,10 @@ import GlobalVarsEditor from '../variables/GlobalVarsEditor'
 import CurlImportModal from './CurlImportModal'
 import CollectionImportModal from './CollectionImportModal'
 import EnvironmentImportModal from './EnvironmentImportModal'
+import TrashModal from './TrashModal'
 import TestsSection from '../tests/TestSuiteList'
 import FlowsSection from '../flows/FlowList'
+import CookieJarSection from './CookieJarSection'
 import { cn } from '@/components/ui/cn'
 import { EnvRowSkeleton, GlobalVarRowSkeleton } from '@/components/ui/Skeleton'
 import InputModal from '@/components/InputModal'
@@ -26,8 +28,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ width }: SidebarProps) {
-  const t = useTranslations()
-  const { sidebarSection, setSidebarSection } = useUiStore()
+  const { sidebarSection } = useUiStore()
   const { fetchWorkspace } = useWorkspaceStore()
   const [showCurlImport, setShowCurlImport] = useState(false)
   const [showCollectionImport, setShowCollectionImport] = useState(false)
@@ -37,37 +38,8 @@ export default function Sidebar({ width }: SidebarProps) {
     fetchWorkspace()
   }, [fetchWorkspace])
 
-  const navItems: { section: SidebarSection; icon: React.ReactNode; label: string }[] = [
-    { section: 'collections', icon: <FolderOpen size={18} />, label: t('nav.collections') },
-    { section: 'environments', icon: <Layers size={18} />, label: t('nav.environments') },
-    { section: 'globals', icon: <Globe size={18} />, label: t('nav.globals') },
-    { section: 'history', icon: <History size={18} />, label: t('nav.history') },
-    { section: 'tests', icon: <FlaskConical size={18} />, label: t('nav.tests') },
-    { section: 'flows', icon: <Workflow size={18} />, label: t('nav.flows') },
-  ]
-
   return (
-    <aside className="flex h-full shrink-0 flex-col border-r border-th-border bg-th-surface" style={{ width: width ?? 256 }}>
-      {/* Section tabs */}
-      <div className="flex h-9 shrink-0 border-b border-th-border">
-        {navItems.map(({ section, icon, label }) => (
-          <button
-            key={section}
-            onClick={() => setSidebarSection(section)}
-            title={label}
-            className={cn(
-              'relative flex flex-1 items-center justify-center text-th-fg-muted transition-colors hover:text-th-fg',
-              sidebarSection === section
-                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-th-accent after:z-10'
-                : 'hover:bg-th-surface-hover/50'
-            )}
-          >
-            {icon}
-          </button>
-        ))}
-      </div>
-
-      {/* Section content */}
+    <aside className="flex h-full shrink-0 flex-col bg-th-surface" style={{ width: width ?? 256 }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         {sidebarSection === 'collections' && (
           <CollectionsSection
@@ -80,6 +52,7 @@ export default function Sidebar({ width }: SidebarProps) {
         {sidebarSection === 'history' && <HistorySection />}
         {sidebarSection === 'tests' && <TestsSection />}
         {sidebarSection === 'flows' && <FlowsSection />}
+        {sidebarSection === 'cookies' && <CookieJarSection />}
       </div>
 
       {showCurlImport && <CurlImportModal onClose={() => setShowCurlImport(false)} />}
@@ -94,6 +67,7 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
   const { createCollection } = useCollectionStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [showTrash, setShowTrash] = useState(false)
   const [query, setQuery] = useState('')
 
   async function handleCreate(name: string) {
@@ -139,6 +113,12 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
                   >
                     {t('import.curl')}
                   </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); setShowTrash(true) }}
+                    className="w-full px-3 py-1.5 text-left text-xs text-th-fg hover:bg-th-surface-hover"
+                  >
+                    Trash
+                  </button>
                 </div>
               </>
             )}
@@ -176,13 +156,14 @@ function CollectionsSection({ onImportCurl, onImportCollection }: { onImportCurl
           onConfirm={handleCreate}
         />
       )}
+      {showTrash && <TrashModal onClose={() => setShowTrash(false)} />}
     </div>
   )
 }
 
 function EnvironmentsSection({ onImport }: { onImport: () => void }) {
   const t = useTranslations()
-  const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment, loading: envLoading } =
+  const { environments, activeEnvironmentId, setActiveEnvironment, deleteEnvironment, duplicateEnvironment, loading: envLoading } =
     useEnvironmentStore()
 
   const [editing, setEditing] = useState<EnvironmentItem | null | undefined>(undefined)
@@ -273,6 +254,13 @@ function EnvironmentsSection({ onImport }: { onImport: () => void }) {
                 className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-th-fg"
               >
                 <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => duplicateEnvironment(env.id)}
+                title="Duplicate"
+                className="rounded-md p-1 text-th-fg-muted transition-colors hover:bg-th-surface hover:text-th-fg"
+              >
+                <Copy size={12} />
               </button>
               <button
                 onClick={() => {

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { X, ChevronDown, ChevronRight } from 'lucide-react'
@@ -61,7 +61,7 @@ export default function TestRunResultsModal({ suiteName, result: initialResult, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-th-border px-5 py-3">
           <div>

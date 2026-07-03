@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
+import { requireWorkspaceRole } from '@/lib/auth/workspace-guard'
 import { executeSchema } from '@/schemas'
 import { execute } from '@/lib/execute/executor'
 import { ValidationError, UnauthorizedError } from '@/lib/errors'
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const session = await requireSession()
 
     // Validate workspace ownership via X-Workspace-Id header (IDOR-safe)
-    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
 
     const body = await req.json()
     // Use the validated workspace ID — not the client-supplied one

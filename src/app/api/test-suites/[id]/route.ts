@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
-import { requireActiveWorkspace } from '@/lib/auth/workspace-guard'
+import { requireActiveWorkspace, requireWorkspaceRole } from '@/lib/auth/workspace-guard'
 import {
   findTestSuiteByIdForWorkspace,
   updateTestSuite,
@@ -27,7 +27,7 @@ export function PUT(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const suite = await findTestSuiteByIdForWorkspace(id, workspace.id)
     if (!suite) throw new NotFoundError('Test suite')
     const body = await req.json()
@@ -42,7 +42,7 @@ export function DELETE(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const workspace = await requireActiveWorkspace(req, session.user.id)
+    const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const suite = await findTestSuiteByIdForWorkspace(id, workspace.id)
     if (!suite) throw new NotFoundError('Test suite')
     await deleteTestSuite(id)

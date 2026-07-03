@@ -7,14 +7,17 @@ import { useWorkspaceStore } from '@/store/workspace.store'
 import { useRequestStore } from '@/store/request.store'
 import { useFlowStore } from '@/store/flow.store'
 import Sidebar from '@/features/sidebar/Sidebar'
+import ActivityBar from '@/features/sidebar/ActivityBar'
 import RequestEditorPane from '@/features/request-editor/RequestEditorPane'
 import FlowEditor from '@/features/flows/FlowEditor'
 import Navbar from '@/features/navbar/Navbar'
+import GlobalSearchModal from '@/components/GlobalSearchModal'
 
 const SIDEBAR_MIN = 180
 const SIDEBAR_MAX = 520
 const SIDEBAR_DEFAULT = 256
 const STORAGE_KEY = 'sidebar-width'
+const STORAGE_OPEN_KEY = 'sidebar-open'
 
 interface Props {
   userId: string
@@ -32,10 +35,17 @@ export default function WorkspaceShell({ userId: _userId, userName }: Props) {
   const activeFlowId = useFlowStore(s => s.activeFlowId)
   const prevWorkspaceId = useRef<string | null>(null)
 
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
+
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT
     const saved = parseInt(localStorage.getItem(STORAGE_KEY) ?? '', 10)
     return isNaN(saved) ? SIDEBAR_DEFAULT : Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, saved))
+  })
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem(STORAGE_OPEN_KEY)
+    return saved === null ? true : saved === 'true'
   })
   const [isResizing, setIsResizing] = useState(false)
   const dragStartX = useRef<number>(0)
@@ -46,6 +56,18 @@ export default function WorkspaceShell({ userId: _userId, userName }: Props) {
     const saved = localStorage.getItem('theme')
     if (saved === 'dark') document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
+  }, [])
+
+  // Ctrl+K → global search
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setGlobalSearchOpen(v => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Initial mount: load workspaces list first, then active workspace + data
@@ -105,22 +127,32 @@ export default function WorkspaceShell({ userId: _userId, userName }: Props) {
     <div className={`flex h-screen flex-col overflow-hidden bg-th-bg text-th-fg${isResizing ? ' select-none' : ''}`}>
       <Navbar userName={userName} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar width={sidebarWidth} />
-        {/* Resize handle */}
-        <div
-          onMouseDown={onMouseDown}
-          className={`relative w-2 shrink-0 cursor-col-resize transition-colors${isResizing ? ' bg-th-accent/20' : ' hover:bg-th-accent/10'}`}
-        >
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-[3px] opacity-40">
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-[3px] w-[3px] rounded-full bg-th-fg-muted" />
-            ))}
-          </div>
-        </div>
+        {/* Activity bar — always visible */}
+        <ActivityBar
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => {
+            const next = !sidebarOpen
+            setSidebarOpen(next)
+            localStorage.setItem(STORAGE_OPEN_KEY, String(next))
+          }}
+        />
+        {/* Sidebar content panel — collapsible */}
+        {sidebarOpen && (
+          <>
+            <Sidebar width={sidebarWidth} />
+            <div
+              onMouseDown={onMouseDown}
+              className="group relative w-1 shrink-0 cursor-col-resize"
+            >
+              <div className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors${isResizing ? ' bg-th-accent' : ' bg-th-border group-hover:bg-th-accent'}`} />
+            </div>
+          </>
+        )}
         <main className="flex flex-1 flex-col overflow-hidden">
           {activeFlowId ? <FlowEditor /> : <RequestEditorPane />}
         </main>
       </div>
+      <GlobalSearchModal open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />
     </div>
   )
 }

@@ -24,7 +24,7 @@ export async function finalizeFlowRun(
   data: {
     testResults: PlaywrightRunResult | null
     summary: FlowRunSummary
-    status: 'passed' | 'failed' | 'errored'
+    status: 'passed' | 'failed' | 'errored' | 'timedOut'
   }
 ) {
   const rows = await db
@@ -67,4 +67,15 @@ export async function findFlowRunByIdForWorkspace(id: string, workspaceId: strin
     .where(and(eq(flowRuns.id, id), eq(flowRuns.workspaceId, workspaceId)))
     .limit(1)
   return rows[0] ?? null
+}
+
+/** Run ids for a flow beyond the most recent `keepCount` — used to prune their on-disk artifact directories (screenshots/videos), not the DB rows themselves. */
+export async function findFlowRunIdsBeyondLimit(flowId: string, keepCount: number) {
+  const rows = await db
+    .select({ id: flowRuns.id })
+    .from(flowRuns)
+    .where(eq(flowRuns.flowId, flowId))
+    .orderBy(desc(flowRuns.createdAt))
+    .offset(keepCount)
+  return rows.map(r => r.id)
 }

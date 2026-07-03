@@ -27,7 +27,7 @@ export default function ConfirmModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
       <div
-        className="w-full max-w-sm rounded-lg border border-th-border bg-th-bg shadow-2xl"
+        className="w-full max-w-sm rounded-xl border border-th-border bg-th-bg shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {title && (

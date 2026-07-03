@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useState } from 'react'
 import { X, Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
@@ -98,7 +98,7 @@ export default function EnvironmentImportModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
         <div className="flex items-center justify-between border-b border-th-border px-5 py-3">
           <p className="text-sm font-semibold text-th-fg">Import Environment</p>
           <button onClick={onClose} className="rounded p-1.5 text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg">

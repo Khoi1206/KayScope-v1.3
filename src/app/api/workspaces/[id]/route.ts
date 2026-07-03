@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import {
+  findWorkspaceById,
   findWorkspaceByIdAndOwner,
   updateWorkspace,
   deleteWorkspace,
   countWorkspacesByOwner,
 } from '@/db/queries/workspaces'
+import { getEffectiveRole, roleAtLeast } from '@/lib/auth/workspace-guard'
 import { patchWorkspaceSchema, updateWorkspaceSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors'
 import { maskVariables, encryptVariables } from '@/lib/execute/variable-crypto'
 
 type Params = { params: Promise<{ id: string }> }
 
-/** GET /api/workspaces/[id] — full workspace (global vars masked) */
+/** GET /api/workspaces/[id] — full workspace (global vars masked); any member can view */
 export function GET(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const ws = await findWorkspaceByIdAndOwner(id, session.user.id)
+    const ws = await findWorkspaceById(id)
     if (!ws) throw new NotFoundError('Workspace')
+    const role = await getEffectiveRole(id, session.user.id)
+    if (!role) throw new ForbiddenError('Workspace not found or access denied')
     return NextResponse.json({
       ...ws,
       globalVariables: maskVariables(ws.globalVariables),
@@ -27,13 +31,15 @@ export function GET(req: NextRequest, { params }: Params) {
   })
 }
 
-/** PATCH /api/workspaces/[id] — rename / change type / update description */
+/** PATCH /api/workspaces/[id] — rename / change type / update description; admin or owner */
 export function PATCH(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const ws = await findWorkspaceByIdAndOwner(id, session.user.id)
+    const ws = await findWorkspaceById(id)
     if (!ws) throw new NotFoundError('Workspace')
+    const role = await getEffectiveRole(id, session.user.id)
+    if (!role || !roleAtLeast(role, 'admin')) throw new ForbiddenError('Insufficient workspace role')
 
     const body = await req.json()
     const parsed = patchWorkspaceSchema.safeParse(body)
@@ -56,13 +62,15 @@ export function PATCH(req: NextRequest, { params }: Params) {
   })
 }
 
-/** PUT /api/workspaces/[id] — update global variables */
+/** PUT /api/workspaces/[id] — update global variables; admin or owner */
 export function PUT(req: NextRequest, { params }: Params) {
   return withErrorHandler(async () => {
     const { id } = await params
     const session = await requireSession()
-    const ws = await findWorkspaceByIdAndOwner(id, session.user.id)
+    const ws = await findWorkspaceById(id)
     if (!ws) throw new NotFoundError('Workspace')
+    const role = await getEffectiveRole(id, session.user.id)
+    if (!role || !roleAtLeast(role, 'admin')) throw new ForbiddenError('Insufficient workspace role')
 
     const body = await req.json()
     const parsed = updateWorkspaceSchema.safeParse(body)

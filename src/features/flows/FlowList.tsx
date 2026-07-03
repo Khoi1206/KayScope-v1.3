@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, Play, MoreHorizontal, Pencil, Trash2, BarChart2, Download, Loader2 } from 'lucide-react'
 import { useFlowStore, type FlowItem } from '@/store/flow.store'
 import { ListRowSkeleton } from '@/components/ui/Skeleton'
@@ -10,6 +11,7 @@ import FlowRunHistoryPanel from './FlowRunHistoryPanel'
 import ConfirmModal from '@/components/ConfirmModal'
 
 export default function FlowsSection() {
+  const t = useTranslations('flows')
   const { flows, loading, error, runningId, editingFlow, fetchFlows, setActiveFlow, deleteFlow, runFlow, openEdit, closeEdit } = useFlowStore()
   const [historyFlow, setHistoryFlow] = useState<FlowItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<FlowItem | null>(null)
@@ -25,10 +27,10 @@ export default function FlowsSection() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">Flows</span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-th-fg-muted">{t('title')}</span>
         <button
           onClick={() => openEdit(null)}
-          title="New Flow"
+          title={t('createFlow')}
           className="rounded-md p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
         >
           <Plus size={13} />
@@ -46,11 +48,12 @@ export default function FlowsSection() {
         {error && <p className="px-3 py-2 text-xs text-red-400">{error}</p>}
 
         {!loading && flows.length === 0 && (
-          <p className="px-3 py-4 text-xs text-th-fg-subtle">
-            No flows yet.{' '}
-            <button onClick={() => openEdit(null)} className="text-th-accent hover:underline">Create one</button>{' '}
-            to build a browser automation.
-          </p>
+          <div className="px-3 py-4">
+            <p className="text-xs text-th-fg-subtle">{t('empty')}</p>
+            <button onClick={() => openEdit(null)} className="mt-1 text-xs text-th-accent hover:underline">
+              {t('createFlow')}
+            </button>
+          </div>
         )}
 
         {flows.map(flow => (
@@ -77,7 +80,7 @@ export default function FlowsSection() {
 
       {deleteTarget && (
         <ConfirmModal
-          message={`Delete flow "${deleteTarget.name}"? All run history will also be deleted.`}
+          message={t('deleteConfirm', { name: deleteTarget.name })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={confirmDeleteFlow}
         />

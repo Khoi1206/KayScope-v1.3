@@ -124,6 +124,8 @@ function buildPmApi(ctx, tests, logs) {
     },
   } : null
 
+  let _nextRequest = null
+
   const pmApi = {
     variables: makeVarScope(ctx.local, mutations.local, allScopes),
     environment: makeVarScope(ctx.environment, mutations.environment, allScopes),
@@ -155,6 +157,12 @@ function buildPmApi(ctx, tests, logs) {
     response: null,
     _mutations: mutations,
     _requestMutations: requestMutations,
+    get _nextRequest() { return _nextRequest },
+
+    /** Jump to a named request in the collection runner (no-op in single execute) */
+    setNextRequest: (name) => {
+      _nextRequest = name === null ? null : String(name)
+    },
   }
 
   return { pmApi, consoleApi }
@@ -209,6 +217,7 @@ export default async function executeInWorker({ script, ctx, responseForPostScri
   return {
     mutations: pmApi._mutations,
     requestMutations: pmApi._requestMutations,
+    nextRequest: pmApi._nextRequest,
     tests,
     logs,
     error,

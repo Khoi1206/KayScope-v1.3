@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useState } from 'react'
 import { X, Upload, CheckCircle, AlertCircle, Loader2, FolderOpen, FileText } from 'lucide-react'
@@ -125,7 +125,7 @@ export default function CollectionImportModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-lg border border-th-border bg-th-bg shadow-2xl">
+      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-th-border bg-th-bg shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-th-border px-5 py-3">
           <p className="text-sm font-semibold text-th-fg">Import Collection</p>

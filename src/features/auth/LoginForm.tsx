@@ -35,7 +35,7 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-lg border border-th-border bg-th-surface p-8 shadow-sm">
+    <div className="w-full max-w-sm rounded-2xl border border-th-border bg-th-surface p-8 shadow-md">
       <h1 className="mb-6 text-xl font-semibold text-th-fg">{t('loginTitle')}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">

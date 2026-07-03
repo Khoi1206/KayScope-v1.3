@@ -22,8 +22,24 @@ interface Props {
   onNavigateToVariables?: () => void
 }
 
-const BODY_TYPES = ['none', 'raw', 'form-data', 'x-www-form-urlencoded'] as const
+const BODY_TYPES = ['none', 'raw', 'form-data', 'x-www-form-urlencoded', 'graphql'] as const
 const RAW_TYPES = ['text', 'json', 'javascript', 'html', 'xml'] as const
+
+function inferContentType(body: { type: string; rawType?: string }): string | null {
+  if (body.type === 'none') return null
+  if (body.type === 'raw' || body.type === 'json') {
+    const rt = body.rawType ?? 'text'
+    if (rt === 'json') return 'application/json'
+    if (rt === 'html') return 'text/html'
+    if (rt === 'xml') return 'application/xml'
+    if (rt === 'javascript') return 'application/javascript'
+    return 'text/plain'
+  }
+  if (body.type === 'form-data') return 'multipart/form-data'
+  if (body.type === 'x-www-form-urlencoded') return 'application/x-www-form-urlencoded'
+  if (body.type === 'graphql') return 'application/json'
+  return null
+}
 
 export default function BodyTab({
   body, onChange,
@@ -49,16 +65,16 @@ export default function BodyTab({
   return (
     <div className="flex flex-col">
       {/* Body type tab strip */}
-      <div className="flex items-center border-b border-th-border px-3">
+      <div className="flex items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
         {BODY_TYPES.map(type => (
           <button
             key={type}
             onClick={() => handleTypeChange(type)}
             className={cn(
-              'relative px-3 py-2 text-xs font-medium transition-colors',
+              'rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150',
               effectiveType === type
-                ? 'text-th-fg after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-th-accent'
-                : 'text-th-fg-muted hover:text-th-fg'
+                ? 'bg-th-bg text-th-fg shadow-sm'
+                : 'text-th-fg-muted hover:bg-th-surface-hover hover:text-th-fg'
             )}
           >
             {type}
@@ -70,12 +86,22 @@ export default function BodyTab({
           <select
             value={monoLanguage}
             onChange={e => onChange({ ...body, type: 'raw', rawType: e.target.value as typeof RAW_TYPES[number] })}
-            className="rounded border border-th-border bg-th-input px-2 py-1 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
+            className="rounded-lg border border-th-border bg-th-input px-2 py-1 text-xs text-th-fg transition-colors focus:border-th-accent focus:outline-none focus:ring-1 focus:ring-th-accent/50"
           >
             {RAW_TYPES.map(rt => (
               <option key={rt} value={rt}>{rt}</option>
             ))}
           </select>
+        )}
+
+        {/* Content-Type badge — shows what header will be sent */}
+        {inferContentType(body) && (
+          <span
+            className="ml-auto mr-1 rounded bg-th-surface-hover px-2 py-0.5 font-mono text-[10px] text-th-fg-muted"
+            title="This Content-Type header will be automatically added when sending"
+          >
+            {inferContentType(body)}
+          </span>
         )}
       </div>
 
@@ -112,6 +138,37 @@ export default function BodyTab({
             onSaveVar={onSaveVar}
             onNavigateToVariables={onNavigateToVariables}
           />
+        )}
+
+        {body.type === 'graphql' && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlQuery')}</label>
+              <MonacoEditor
+                value={body.graphqlQuery ?? ''}
+                onChange={graphqlQuery => onChange({ ...body, graphqlQuery })}
+                language="plaintext"
+                height="180px"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlVariables')}</label>
+              <MonacoEditor
+                value={body.graphqlVariables ?? ''}
+                onChange={graphqlVariables => onChange({ ...body, graphqlVariables })}
+                language="json"
+                height="100px"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlOperationName')}</label>
+              <input
+                className="w-full rounded-lg border border-th-border bg-th-input px-2 py-1.5 text-xs text-th-fg focus:outline-none focus:ring-1 focus:ring-th-accent"
+                value={body.graphqlOperationName ?? ''}
+                onChange={e => onChange({ ...body, graphqlOperationName: e.target.value })}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>
