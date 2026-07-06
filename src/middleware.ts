@@ -32,6 +32,9 @@ export async function middleware(req: NextRequest) {
     if (!isAuthenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    if (pathname.startsWith('/api/admin') && token?.isAdmin !== true) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.next()
   }
 
@@ -45,6 +48,27 @@ export async function middleware(req: NextRequest) {
   // No locale prefix → redirect to default locale version first
   if (!localeMatch) {
     return NextResponse.redirect(new URL(`/${DEFAULT_LOCALE}${pathname}`, nextUrl))
+  }
+
+  // Admin login — public, but bounce already-authenticated admins straight to the CMS.
+  // Must be checked before the generic authRoutes match below, since '/admin/login' also
+  // ends with '/login' and would otherwise be treated as the regular login page.
+  if (localePath === '/admin/login') {
+    if (isAuthenticated && token?.isAdmin === true) {
+      return NextResponse.redirect(new URL(`/${locale}/admin`, nextUrl))
+    }
+    return NextResponse.next()
+  }
+
+  // Admin CMS — requires an authenticated session AND isAdmin === true
+  if (localePath === '/admin' || localePath.startsWith('/admin/')) {
+    if (!isAuthenticated) {
+      return NextResponse.redirect(new URL(`/${locale}/admin/login`, nextUrl))
+    }
+    if (token?.isAdmin !== true) {
+      return NextResponse.redirect(new URL(`/${locale}/admin/login?error=forbidden`, nextUrl))
+    }
+    return NextResponse.next()
   }
 
   // Auth pages (/login, /register) — redirect to dashboard if already signed in

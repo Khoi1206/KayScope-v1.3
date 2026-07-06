@@ -17,11 +17,16 @@ export const authConfig: NextAuthConfig = {
       return true
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
         token.name = user.name
         token.email = user.email
+        token.isAdmin = (user as { isAdmin?: boolean }).isAdmin ?? false
+      }
+      // Client called useSession().update({ name }) after a profile change
+      if (trigger === 'update' && typeof (session as { name?: unknown } | null)?.name === 'string') {
+        token.name = (session as { name: string }).name
       }
       return token
     },
@@ -31,6 +36,7 @@ export const authConfig: NextAuthConfig = {
         session.user.id = token.id as string
         session.user.name = token.name
         session.user.email = token.email as string
+        ;(session.user as { isAdmin?: boolean }).isAdmin = (token.isAdmin as boolean) ?? false
       }
       return session
     },

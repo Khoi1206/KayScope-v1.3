@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import type { RunnerResult } from '@/lib/execute/runner'
 import type { DataRow } from '@/lib/data-parser'
+import { getWorkspaceHeaders } from './workspace.store'
 
 export interface RunnerState {
   /** Collection being run (id + name) */
@@ -33,7 +34,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     try {
       const res = await fetch('/api/runner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
         body: JSON.stringify({ collectionId, environmentId, dataRows }),
       })
       const data = await res.json()

@@ -1,10 +1,15 @@
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { authConfig } from './auth.config'
 import { findUserByEmail } from '@/db/queries/users'
 import { upsertPersonalWorkspace } from '@/db/queries/workspaces'
 import logger from '@/lib/logger'
+
+/** Thrown when credentials are valid but the account is disabled — surfaces `code: 'account_disabled'` to the login form. */
+class AccountDisabledError extends CredentialsSignin {
+  code = 'account_disabled'
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -44,10 +49,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
+        // Disabled accounts are rejected only after the password check passed, so
+        // the "account disabled" message never leaks status to a guessing attacker.
+        if (!user.isActive) {
+          logger.warn({ userId: user.id }, '[auth] authorize: account is disabled')
+          throw new AccountDisabledError()
+        }
+
         // Auto-create workspace if somehow missing (e.g. first login after DB migration)
         await upsertPersonalWorkspace(user.id, `${user.name}'s Workspace`).catch(() => {})
 
-        return { id: user.id, name: user.name, email: user.email }
+        return { id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin }
       },
     }),
   ],

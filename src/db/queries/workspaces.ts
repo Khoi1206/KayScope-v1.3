@@ -1,5 +1,5 @@
 import { eq, and } from 'drizzle-orm'
-import { db, workspaces } from '../index'
+import { db, workspaces, workspaceMembers } from '../index'
 import type { Variable } from '../schema'
 import type { WorkspaceType } from '../schema'
 
@@ -43,6 +43,23 @@ export async function findAllWorkspacesByOwner(ownerId: string) {
     })
     .from(workspaces)
     .where(eq(workspaces.ownerId, ownerId))
+    .orderBy(workspaces.createdAt)
+}
+
+/** Return all workspaces this user is a member of (not owner), with their role. */
+export async function findAllWorkspacesByMembership(userId: string) {
+  return db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      type: workspaces.type,
+      description: workspaces.description,
+      createdAt: workspaces.createdAt,
+      role: workspaceMembers.role,
+    })
+    .from(workspaceMembers)
+    .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+    .where(eq(workspaceMembers.userId, userId))
     .orderBy(workspaces.createdAt)
 }
 

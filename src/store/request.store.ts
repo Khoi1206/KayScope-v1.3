@@ -313,7 +313,7 @@ export const useRequestStore = create<RequestStore>()(
         if (!tab?.requestId || !snap) throw new Error('No saved request to update')
         const res = await fetch(`/api/requests/${tab.requestId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
           body: JSON.stringify({
             name: tab.title,
             method: snap.method,

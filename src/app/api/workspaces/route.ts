@@ -2,17 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import {
   findAllWorkspacesByOwner,
+  findAllWorkspacesByMembership,
   createWorkspace,
 } from '@/db/queries/workspaces'
 import { createWorkspaceSchema } from '@/schemas'
 import { withErrorHandler } from '@/lib/api/respond'
 import { ValidationError } from '@/lib/errors'
 
-/** GET /api/workspaces — list all workspaces owned by the current user */
+/** GET /api/workspaces — list workspaces the current user owns or is a member of */
 export function GET() {
   return withErrorHandler(async () => {
     const session = await requireSession()
-    const workspaces = await findAllWorkspacesByOwner(session.user.id)
+    const [owned, member] = await Promise.all([
+      findAllWorkspacesByOwner(session.user.id),
+      findAllWorkspacesByMembership(session.user.id),
+    ])
+    const workspaces = [
+      ...owned.map(w => ({ ...w, role: 'owner' as const })),
+      ...member,
+    ]
     return NextResponse.json(workspaces)
   })
 }

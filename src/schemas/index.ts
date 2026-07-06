@@ -192,6 +192,43 @@ export const updateMemberRoleSchema = z.object({
   role: workspaceRoleEnum,
 })
 
+// ── Admin CMS ──────────────────────────────────────────────────────────────
+
+export const adminUpdateUserSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').max(100).optional(),
+    email: z.string().email('Invalid email address').optional(),
+    password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+    isAdmin: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine(data => Object.values(data).some(v => v !== undefined), {
+    message: 'At least one field is required',
+  })
+
+export const adminCreateUserSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  isAdmin: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true),
+})
+
+// ── Profile ────────────────────────────────────────────────────────────────
+
+export const updateProfileSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').max(100).optional(),
+    currentPassword: z.string().min(1).optional(),
+    newPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  })
+  .refine(data => data.name !== undefined || data.newPassword !== undefined, {
+    message: 'Nothing to update',
+  })
+  .refine(data => data.newPassword === undefined || data.currentPassword !== undefined, {
+    message: 'Current password is required to set a new password',
+  })
+
 // ── Execute ────────────────────────────────────────────────────────────────
 
 export const executeSchema = z.object({

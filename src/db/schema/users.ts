@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core'
 import { createId } from '../utils'
 
 export const users = pgTable('users', {
@@ -8,6 +8,8 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash'),
   provider: text('provider').notNull().default('credentials'),
   providerId: text('provider_id'),
+  isAdmin: boolean('is_admin').notNull().default(false),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

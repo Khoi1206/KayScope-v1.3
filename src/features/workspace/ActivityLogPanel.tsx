@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { X } from 'lucide-react'
-import { useWorkspaceStore } from '@/store/workspace.store'
+import { useWorkspaceStore, type ActivityLogItem } from '@/store/workspace.store'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
@@ -18,6 +18,28 @@ export default function ActivityLogPanel({ workspaceId, workspaceName, onClose }
 
   useEscapeKey(onClose)
   useEffect(() => { void fetchActivityLogs(workspaceId) }, [workspaceId, fetchActivityLogs])
+
+  function roleLabel(r: string) {
+    if (r === 'admin') return t('members.roleAdmin')
+    if (r === 'editor') return t('members.roleEditor')
+    if (r === 'viewer') return t('members.roleViewer')
+    return r
+  }
+
+  function metaDetail(log: ActivityLogItem): string | null {
+    const meta = log.metadata
+    if (!meta) return null
+    if (typeof meta.previousName === 'string') {
+      return t('activity.metaPreviousName', { name: meta.previousName })
+    }
+    if (log.action === 'updated' && typeof meta.newRole === 'string') {
+      return t('activity.metaNewRole', { role: roleLabel(meta.newRole) })
+    }
+    if (log.action === 'created' && log.entityType === 'member' && typeof meta.role === 'string') {
+      return t('activity.metaRole', { role: roleLabel(meta.role) })
+    }
+    return null
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -39,20 +61,26 @@ export default function ActivityLogPanel({ workspaceId, workspaceName, onClose }
             <div className="rounded-md border border-th-border overflow-hidden">
               <table className="w-full text-xs">
                 <tbody>
-                  {activityLogs.map(log => (
-                    <tr key={log.id} className="border-t border-th-border/50 first:border-t-0 hover:bg-th-surface-hover">
-                      <td className="px-3 py-2 text-th-fg">
-                        {t('activity.entry', {
-                          action: t(`activity.action_${log.action}`),
-                          entityType: t(`activity.entity_${log.entityType}`),
-                          entityName: log.entityName,
-                        })}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-th-fg-muted">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {activityLogs.map(log => {
+                    const detail = metaDetail(log)
+                    return (
+                      <tr key={log.id} className="border-t border-th-border/50 first:border-t-0 hover:bg-th-surface-hover">
+                        <td className="px-3 py-2 text-th-fg">
+                          <div>
+                            {t('activity.entry', {
+                              action: t(`activity.action_${log.action}`),
+                              entityType: t(`activity.entity_${log.entityType}`),
+                              entityName: log.entityName,
+                            })}
+                          </div>
+                          {detail && <div className="mt-0.5 text-[11px] text-th-fg-subtle">{detail}</div>}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right align-top text-th-fg-muted">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

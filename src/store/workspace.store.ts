@@ -20,6 +20,8 @@ export interface WorkspaceListItem {
   type: WorkspaceType
   description: string | null
   createdAt: string
+  /** 'owner' if owned, else the caller's membership role */
+  role?: 'owner' | 'admin' | 'editor' | 'viewer'
 }
 
 /** Full workspace with global vars — returned by GET /api/workspaces/[id] */

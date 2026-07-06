@@ -5,6 +5,7 @@ import { X, Upload, CheckCircle, AlertCircle, Loader2, FolderOpen, FileText } fr
 import { parsePostmanCollection } from '@/lib/postman-import'
 import { parseOpenApiDocument } from '@/lib/openapi-import'
 import { useCollectionStore } from '@/store/collection.store'
+import { getWorkspaceHeaders } from '@/store/workspace.store'
 import type { ParsedCollection, ParsedFolder, ParsedRequest } from '@/lib/postman-import'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 
@@ -80,7 +81,7 @@ export default function CollectionImportModal({ onClose }: Props) {
       setProgress('Creating collection…')
       const colRes = await fetch('/api/collections', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
         body: JSON.stringify({ name: parsed.name }),
       })
       if (!colRes.ok) {
@@ -94,7 +95,7 @@ export default function CollectionImportModal({ onClose }: Props) {
         setProgress('Saving collection variables…')
         await fetch(`/api/collections/${collectionId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
           body: JSON.stringify({ variables: parsed.variables }),
         })
       }
@@ -285,7 +286,7 @@ async function createFolderInOrder(
 
   const res = await fetch('/api/folders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -317,7 +318,7 @@ async function createRequest(
 
   const res = await fetch('/api/requests', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
     body: JSON.stringify(body),
   })
   if (!res.ok) {

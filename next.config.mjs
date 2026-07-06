@@ -26,6 +26,7 @@ const securityHeaders = [
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['piscina', 'ioredis'],
+    instrumentationHook: true, // src/instrumentation.ts — seeds bootstrap admin on startup
   },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]

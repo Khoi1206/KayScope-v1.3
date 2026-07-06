@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
-import { Link, useRouter } from '@/i18n/routing'
+import { useRouter } from '@/i18n/routing'
 
 export default function LoginForm() {
   const t = useTranslations('auth')
@@ -11,6 +11,10 @@ export default function LoginForm() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [fields, setFields] = useState({ email: '', password: '' })
+  // Guards against a native form submit (which would leak credentials into the
+  // URL as a GET query string) if the button is clicked before React hydrates.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFields(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -26,7 +30,7 @@ export default function LoginForm() {
         redirect: false,
       })
       if (res?.error) {
-        setError(t('invalidCredentials'))
+        setError(res.code === 'account_disabled' ? t('accountDisabled') : t('invalidCredentials'))
       } else {
         router.push('/dashboard')
         router.refresh()
@@ -38,7 +42,7 @@ export default function LoginForm() {
     <div className="w-full max-w-sm rounded-2xl border border-th-border bg-th-surface p-8 shadow-md">
       <h1 className="mb-6 text-xl font-semibold text-th-fg">{t('loginTitle')}</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} method="post" className="space-y-4">
         <div>
           <label htmlFor="email" className="mb-1 block text-sm font-medium text-th-fg-muted">
             {t('email')}
@@ -78,19 +82,21 @@ export default function LoginForm() {
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || !mounted}
           className="w-full rounded-md bg-th-accent px-4 py-2 text-sm font-medium text-white hover:bg-th-accent-hover disabled:opacity-50"
         >
           {isPending ? t('signingIn') : t('signIn')}
         </button>
       </form>
 
+      {/* Self-registration is disabled — accounts are created by an admin in the CMS.
       <p className="mt-4 text-center text-sm text-th-fg-muted">
         {t('noAccount')}{' '}
         <Link href="/register" className="text-th-accent hover:underline">
           {t('register')}
         </Link>
       </p>
+      */}
     </div>
   )
 }

@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Search, Database, FolderClosed, ChevronRight, Plus } from 'lucide-react'
 import { useCollectionStore } from '@/store/collection.store'
+import { getWorkspaceHeaders } from '@/store/workspace.store'
 import type { TabSnapshot } from '@/store/request.store'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface Props {
-  tabId: string
   initialName: string
   snapshot: TabSnapshot
   onClose: () => void
@@ -157,7 +157,7 @@ export default function SaveRequestModal({ initialName, snapshot, onClose, onSav
     try {
       const res = await fetch('/api/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getWorkspaceHeaders() },
         body: JSON.stringify({
           collectionId: currentCollection.id,
           folderId: currentFolder?.id ?? undefined,

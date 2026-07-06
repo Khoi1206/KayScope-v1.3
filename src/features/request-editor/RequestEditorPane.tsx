@@ -1006,7 +1006,6 @@ export default function RequestEditorPane() {
         if (!modalTab || !modalSnap) return null
         return (
           <SaveRequestModal
-            tabId={saveModalForTabId}
             initialName={modalTab.title}
             snapshot={modalSnap}
             onClose={() => setSaveModalForTabId(null)}

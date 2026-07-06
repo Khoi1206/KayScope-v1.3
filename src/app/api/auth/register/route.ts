@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server'
+
+// Self-registration is disabled — accounts are created by an admin in the CMS
+// via POST /api/admin/users. Original handler kept below for reference.
+export async function POST() {
+  return NextResponse.json({ error: 'Registration is disabled' }, { status: 404 })
+}
+
+/*
+import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { registerSchema } from '@/schemas'
 import { findUserByEmail, createUser } from '@/db/queries/users'
@@ -38,3 +47,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+*/

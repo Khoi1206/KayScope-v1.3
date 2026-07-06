@@ -92,3 +92,4 @@ export { activityLogs, type ActivityAction, type ActivityEntityType, type Activi
 export { workspaceMembers, type WorkspaceRole, type WorkspaceMember, type NewWorkspaceMember } from './workspace_members'
 export { examples, type Example, type NewExample } from './examples'
 export { cookies, type Cookie, type NewCookie } from './cookies'
+export { adminAuditLogs, type AdminAuditAction, type AdminAuditLog, type NewAdminAuditLog } from './admin_audit_logs'

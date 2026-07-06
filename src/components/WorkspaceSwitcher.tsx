@@ -80,6 +80,11 @@ export default function WorkspaceSwitcher() {
                 {ws.type === 'team' && (
                   <span className="rounded bg-blue-500/20 px-1 py-0.5 text-[10px] font-medium text-blue-400">Team</span>
                 )}
+                {ws.role && ws.role !== 'owner' && (
+                  <span className="rounded bg-th-fg-muted/20 px-1 py-0.5 text-[10px] font-medium capitalize text-th-fg-muted">
+                    {ws.role}
+                  </span>
+                )}
               </button>
             ))}
 
