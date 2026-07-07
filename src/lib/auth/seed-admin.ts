@@ -3,11 +3,6 @@ import { findUserByEmail, createUser } from '@/db/queries/users'
 import { upsertPersonalWorkspace } from '@/db/queries/workspaces'
 import logger from '@/lib/logger'
 
-/**
- * Idempotent bootstrap admin account, run once on server startup (src/instrumentation.ts).
- * Reads ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME from env; skips silently when the
- * account already exists, and skips with a warning when the env vars are not set.
- */
 export async function seedAdminUser() {
   const email = "admin@example.com"
   const password = "12345678"
