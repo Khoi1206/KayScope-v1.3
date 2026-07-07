@@ -2,8 +2,6 @@
 
 Server-backed REST API testing tool (Postman-style) built with Next.js 14, PostgreSQL, and Drizzle ORM.
 
-> Tài liệu kiến trúc/blueprint đầy đủ nằm ở [CLAUDE.md](./CLAUDE.md). File này chỉ hướng dẫn **cài đặt và chạy dự án**.
-
 ## 1. Yêu cầu hệ thống
 
 - Node.js 20+
@@ -98,9 +96,3 @@ E2E tests cần server đang chạy (`playwright.config.ts` tự động dùng s
 ```bash
 pnpm lint
 ```
-
-## 9. Tài liệu liên quan
-
-- [CLAUDE.md](./CLAUDE.md) — blueprint kiến trúc, phase roadmap, quy tắc bảo mật biến/secret, quy ước code
-- [docs/gap-analysis-vs-postman.md](./docs/gap-analysis-vs-postman.md) — so sánh tính năng với Postman
-- [docs/admin-cms-plan.md](./docs/admin-cms-plan.md) — kế hoạch CMS admin
