@@ -37,7 +37,7 @@ cp .env.local.example .env.local
 | `AUTH_SECRET` | Secret cho NextAuth v5 (JWT) | `openssl rand -hex 32` |
 | `NEXTAUTH_URL` | Base URL của app | `http://localhost:3000` khi chạy local |
 | `VAR_ENCRYPTION_KEY` | Khóa AES-256-GCM mã hóa secret variables/cookies | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `REDIS_URL` | Redis cho rate limiting | `redis://localhost:6379` |
+| `REDIS_URL` | Redis cho rate limiting | `redis://username:password@host:6379` |
 
 Admin được tạo tự động một lần khi server khởi động (`src/instrumentation.ts` → `seedAdminUser()`), chỉ khi tài khoản với email đó chưa tồn tại.
 
