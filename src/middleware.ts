@@ -24,6 +24,11 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({
     req,
     secret: process.env.AUTH_SECRET,
+    // Behind a reverse proxy the request reaches Node over plain HTTP, so getToken()'s
+    // protocol-based guess picks the wrong cookie name (missing __Secure- prefix) and
+    // never finds the session — causing a redirect loop with server components that use
+    // auth() (which correctly trusts AUTH_URL/AUTH_TRUST_HOST). Force it explicitly.
+    secureCookie: process.env.AUTH_URL?.startsWith('https://') ?? process.env.NODE_ENV === 'production',
   })
   const isAuthenticated = !!token
 
