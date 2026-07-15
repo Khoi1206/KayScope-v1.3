@@ -334,9 +334,7 @@
       "duration": "Duration",
       "rawOutput": "Raw output",
       "noResults": "No test results.",
-      "error": "Error",
-      "viewTrace": "View Trace",
-      "traceViewer": "Playwright Trace Viewer"
+      "error": "Error"
     },
     "report": {
       "title": "Flow Run History",

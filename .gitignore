@@ -53,9 +53,6 @@ CLAUDE.md
 # ─── User uploads ────────────────────────────────────────────────────────────
 public/uploads/
 
-# ─── Generated at build/dev time by scripts/copy-trace-viewer.mjs ───────────
-public/trace-viewer/
-
 # ─── Playwright MCP scratch output (screenshots, snapshots, downloads) ──────
 /.playwright-mcp/
 /tests/e2e/generated/*

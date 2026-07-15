@@ -4,9 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "predev": "node scripts/copy-trace-viewer.mjs",
     "dev": "tsx server.ts",
-    "prebuild": "node scripts/copy-trace-viewer.mjs",
     "build": "next build",
     "start": "cross-env NODE_ENV=production tsx server.ts",
     "lint": "next lint",

@@ -334,9 +334,7 @@
       "duration": "Thời gian",
       "rawOutput": "Đầu ra thô",
       "noResults": "Chưa có kết quả kiểm thử.",
-      "error": "Lỗi",
-      "viewTrace": "Xem Trace",
-      "traceViewer": "Playwright Trace Viewer"
+      "error": "Lỗi"
     },
     "report": {
       "title": "Lịch sử chạy luồng",
