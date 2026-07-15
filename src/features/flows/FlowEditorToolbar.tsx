@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { ArrowLeft, Play, Download, Loader2, Clapperboard, Settings, Square, History } from 'lucide-react'
+import { ArrowLeft, Play, Download, Loader2, Clapperboard, Settings, Square, History, Maximize2 } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import { useFlowStore } from '@/store/flow.store'
 import { downloadFile } from '@/lib/download'
 import type { FlowBrowser } from '@/db/schema'
 import FlowSettingsModal from './FlowSettingsModal'
+import FlowUiModal from './FlowUiModal'
 
 interface Props {
   flowId: string
@@ -21,9 +22,10 @@ interface Props {
 
 export default function FlowEditorToolbar({ flowId, flowName, browsers, environmentId, timeoutMs, runError, onOpenVersions }: Props) {
   const t = useTranslations('flows')
-  const { setActiveFlow, runFlow, runningId, openUi, stopUi, checkUiStatus, openingUiId, runningUiIds } = useFlowStore()
+  const { setActiveFlow, runFlow, runningId, openUi, stopUi, checkUiStatus, openingUiId, runningUiIds, uiError } = useFlowStore()
   const [showSettings, setShowSettings] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [showUiPanel, setShowUiPanel] = useState(false)
   const isRunning = runningId === flowId
   const isOpeningUi = openingUiId === flowId
   const isUiRunning = runningUiIds.includes(flowId)
@@ -52,6 +54,15 @@ export default function FlowEditorToolbar({ flowId, flowName, browsers, environm
       {runError && (
         <span className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-400 max-w-xs truncate">
           {runError}
+        </span>
+      )}
+
+      {uiError && (
+        <span
+          className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-400 max-w-xs truncate"
+          title={uiError}
+        >
+          {uiError}
         </span>
       )}
 
@@ -88,24 +99,36 @@ export default function FlowEditorToolbar({ flowId, flowName, browsers, environm
 
       {/* Test UI */}
       {isUiRunning ? (
-        <button
-          onClick={async () => {
-            setStopping(true)
-            try { await stopUi(flowId) } finally { setStopping(false) }
-          }}
-          disabled={stopping}
-          title={t('toolbar.stopUiHint')}
-          className={cn(
-            'flex items-center gap-1.5 rounded px-2 py-1.5 text-xs',
-            stopping ? 'cursor-not-allowed text-red-400/50' : 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
-          )}
-        >
-          {stopping ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
-          {stopping ? t('toolbar.stoppingUi') : t('toolbar.stopUi')}
-        </button>
+        <>
+          <button
+            onClick={() => setShowUiPanel(true)}
+            title={t('toolbar.showUiHint')}
+            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-purple-400 hover:bg-purple-500/10 hover:text-purple-300"
+          >
+            <Maximize2 size={13} />
+          </button>
+          <button
+            onClick={async () => {
+              setStopping(true)
+              try { await stopUi(flowId) } finally { setStopping(false) }
+            }}
+            disabled={stopping}
+            title={t('toolbar.stopUiHint')}
+            className={cn(
+              'flex items-center gap-1.5 rounded px-2 py-1.5 text-xs',
+              stopping ? 'cursor-not-allowed text-red-400/50' : 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
+            )}
+          >
+            {stopping ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
+            {stopping ? t('toolbar.stoppingUi') : t('toolbar.stopUi')}
+          </button>
+        </>
       ) : (
         <button
-          onClick={() => void openUi(flowId)}
+          onClick={async () => {
+            await openUi(flowId)
+            if (useFlowStore.getState().runningUiIds.includes(flowId)) setShowUiPanel(true)
+          }}
           disabled={isOpeningUi}
           title={t('toolbar.testUiHint')}
           className={cn(
@@ -143,6 +166,10 @@ export default function FlowEditorToolbar({ flowId, flowName, browsers, environm
           currentTimeoutMs={timeoutMs}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {showUiPanel && isUiRunning && (
+        <FlowUiModal flowId={flowId} onClose={() => setShowUiPanel(false)} />
       )}
     </div>
   )

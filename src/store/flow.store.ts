@@ -64,6 +64,7 @@ interface FlowStore {
   openingUiId: string | null
   // flowIds with a live "Test UI" (Playwright UI mode) process running server-side
   runningUiIds: string[]
+  uiError: string | null
 
   // Per-flow run history cache
   recentRuns: Record<string, FlowRunSummaryItem[]>
@@ -110,6 +111,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   runError: null,
   openingUiId: null,
   runningUiIds: [],
+  uiError: null,
   recentRuns: {},
   versions: {},
   editingFlow: undefined,
@@ -238,7 +240,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   },
 
   openUi: async (flowId) => {
-    set({ openingUiId: flowId })
+    set({ openingUiId: flowId, uiError: null })
     try {
       const res = await fetch(`/api/flows/${flowId}/ui`, { method: 'POST', headers: getWorkspaceHeaders() })
       const data = await res.json().catch(() => ({}))
@@ -246,7 +248,11 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       // both mean a Stop button should be shown for this flow.
       if (res.ok || data.alreadyRunning) {
         set(s => ({ runningUiIds: s.runningUiIds.includes(flowId) ? s.runningUiIds : [...s.runningUiIds, flowId] }))
+      } else {
+        set({ uiError: data.error ?? 'Failed to open Playwright UI' })
       }
+    } catch (err) {
+      set({ uiError: err instanceof Error ? err.message : 'Network error' })
     } finally {
       set({ openingUiId: null })
     }
@@ -254,7 +260,13 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
 
   stopUi: async (flowId) => {
     try {
-      await fetch(`/api/flows/${flowId}/ui`, { method: 'DELETE', headers: getWorkspaceHeaders() })
+      const res = await fetch(`/api/flows/${flowId}/ui`, { method: 'DELETE', headers: getWorkspaceHeaders() })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        set({ uiError: data.error ?? 'Failed to stop Playwright UI' })
+      }
+    } catch (err) {
+      set({ uiError: err instanceof Error ? err.message : 'Network error' })
     } finally {
       set(s => ({ runningUiIds: s.runningUiIds.filter(id => id !== flowId) }))
     }

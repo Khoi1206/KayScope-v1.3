@@ -59,7 +59,12 @@ export default function CollectionImportModal({ onClose }: Props) {
     const reader = new FileReader()
     reader.onload = ev => {
       const content = ev.target?.result as string
-      const result = detectAndParse(file.name, content)
+      let result: { collection?: ParsedCollection; error?: string }
+      try {
+        result = detectAndParse(file.name, content)
+      } catch (err) {
+        result = { error: err instanceof Error ? `Failed to parse file: ${err.message}` : 'Failed to parse file' }
+      }
       if (result.error) {
         setParseError(result.error)
         setStatus('error')

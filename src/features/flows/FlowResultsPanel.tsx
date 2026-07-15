@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { X, ChevronDown, ChevronRight, Image as ImageIcon, Video, FileArchive } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, Image as ImageIcon, Video, FileArchive, PlayCircle } from 'lucide-react'
 import { cn } from '@/components/ui/cn'
 import type { PlaywrightRunResult } from '@/db/schema'
+import TraceViewerModal from '@/components/TraceViewerModal'
 
 interface Props {
   result: PlaywrightRunResult
@@ -88,7 +89,9 @@ function attachmentIcon(contentType: string, size: number) {
 }
 
 function TestRow({ test, runId }: { test: PlaywrightRunResult['tests'][number]; runId?: string }) {
+  const t = useTranslations('flows')
   const [open, setOpen] = useState(false)
+  const [traceUrl, setTraceUrl] = useState<string | null>(null)
   const isPassed = test.status === 'passed'
   const attachments = test.attachments ?? []
 
@@ -121,22 +124,38 @@ function TestRow({ test, runId }: { test: PlaywrightRunResult['tests'][number]; 
           )}
           {runId && attachments.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {attachments.map((att, i) => (
-                <a
-                  key={i}
-                  href={`/api/flow-runs/${runId}/artifact?path=${encodeURIComponent(att.relPath)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 rounded border border-th-border bg-th-surface px-2 py-1 text-[11px] text-th-accent hover:bg-th-surface-hover"
-                >
-                  {attachmentIcon(att.contentType, 11)}
-                  {att.name}
-                </a>
-              ))}
+              {attachments.map((att, i) => {
+                const url = `/api/flow-runs/${runId}/artifact?path=${encodeURIComponent(att.relPath)}`
+                if (att.contentType === 'application/zip') {
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setTraceUrl(url)}
+                      className="flex items-center gap-1 rounded border border-th-border bg-th-surface px-2 py-1 text-[11px] text-th-accent hover:bg-th-surface-hover"
+                    >
+                      <PlayCircle size={11} />
+                      {t('results.viewTrace')}
+                    </button>
+                  )
+                }
+                return (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 rounded border border-th-border bg-th-surface px-2 py-1 text-[11px] text-th-accent hover:bg-th-surface-hover"
+                  >
+                    {attachmentIcon(att.contentType, 11)}
+                    {att.name}
+                  </a>
+                )
+              })}
             </div>
           )}
         </div>
       )}
+      {traceUrl && <TraceViewerModal traceUrl={traceUrl} onClose={() => setTraceUrl(null)} />}
     </div>
   )
 }

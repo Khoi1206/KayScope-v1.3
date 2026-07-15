@@ -50,21 +50,33 @@ export interface ImportResult {
 let _tempIdCounter = 0
 function tempId() { return `__tmp_${++_tempIdCounter}` }
 
+// Most Postman v2.1 exporters emit auth.bearer/basic/apikey as an array of
+// {key, value} pairs, but some tools (e.g. Bruno's Postman-compatible export)
+// collapse it to a single {key, value} object instead — normalize both shapes
+// to an array so the .find() lookups below work either way.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toKvArray(v: any): any[] {
+  if (Array.isArray(v)) return v
+  return v && typeof v === 'object' ? [v] : []
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseAuth(auth: any): ParsedRequest['auth'] | undefined {
   if (!auth || auth.type === 'noauth') return { type: 'none' }
   if (auth.type === 'bearer') {
-    const token = auth.bearer?.find((b: any) => b.key === 'token')?.value ?? ''
+    const token = toKvArray(auth.bearer).find((b: any) => b.key === 'token')?.value ?? ''
     return { type: 'bearer', token }
   }
   if (auth.type === 'basic') {
-    const username = auth.basic?.find((b: any) => b.key === 'username')?.value ?? ''
-    const password = auth.basic?.find((b: any) => b.key === 'password')?.value ?? ''
+    const basic = toKvArray(auth.basic)
+    const username = basic.find((b: any) => b.key === 'username')?.value ?? ''
+    const password = basic.find((b: any) => b.key === 'password')?.value ?? ''
     return { type: 'basic', username, password }
   }
   if (auth.type === 'apikey') {
-    const apiKey = auth.apikey?.find((b: any) => b.key === 'value')?.value ?? ''
-    const apiKeyHeader = auth.apikey?.find((b: any) => b.key === 'key')?.value ?? 'X-API-Key'
+    const apikey = toKvArray(auth.apikey)
+    const apiKey = apikey.find((b: any) => b.key === 'value')?.value ?? ''
+    const apiKeyHeader = apikey.find((b: any) => b.key === 'key')?.value ?? 'X-API-Key'
     return { type: 'api-key', apiKey, apiKeyHeader }
   }
   return undefined

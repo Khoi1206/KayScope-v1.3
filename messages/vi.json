@@ -334,7 +334,9 @@
       "duration": "Thời gian",
       "rawOutput": "Đầu ra thô",
       "noResults": "Chưa có kết quả kiểm thử.",
-      "error": "Lỗi"
+      "error": "Lỗi",
+      "viewTrace": "Xem Trace",
+      "traceViewer": "Playwright Trace Viewer"
     },
     "report": {
       "title": "Lịch sử chạy luồng",
@@ -360,10 +362,11 @@
       "export": "Xuất",
       "exportHint": "Xuất dưới dạng .spec.ts",
       "testUi": "Test UI",
-      "testUiHint": "Mở chế độ Playwright UI",
+      "testUiHint": "Mở Playwright Test UI",
+      "showUiHint": "Hiện bảng Test UI",
       "openingUi": "Đang mở…",
       "stopUi": "Dừng UI",
-      "stopUiHint": "Dừng chế độ Playwright UI",
+      "stopUiHint": "Dừng Playwright Test UI",
       "stoppingUi": "Đang dừng…",
       "alreadyRunningError": "Playwright UI đã đang chạy cho luồng này."
     },

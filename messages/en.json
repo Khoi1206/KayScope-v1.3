@@ -334,7 +334,9 @@
       "duration": "Duration",
       "rawOutput": "Raw output",
       "noResults": "No test results.",
-      "error": "Error"
+      "error": "Error",
+      "viewTrace": "View Trace",
+      "traceViewer": "Playwright Trace Viewer"
     },
     "report": {
       "title": "Flow Run History",
@@ -360,10 +362,11 @@
       "export": "Export",
       "exportHint": "Export as .spec.ts",
       "testUi": "Test UI",
-      "testUiHint": "Open Playwright UI mode",
+      "testUiHint": "Open Playwright Test UI",
+      "showUiHint": "Show Test UI panel",
       "openingUi": "Opening…",
       "stopUi": "Stop UI",
-      "stopUiHint": "Stop Playwright UI mode",
+      "stopUiHint": "Stop Playwright Test UI",
       "stoppingUi": "Stopping…",
       "alreadyRunningError": "Playwright UI is already running for this flow."
     },
