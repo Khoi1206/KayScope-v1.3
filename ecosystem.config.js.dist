@@ -15,6 +15,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: '3008',
         INTERNAL_PORT: '3009',
+        HOSTNAME: '127.0.0.1',
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',

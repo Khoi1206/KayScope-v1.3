@@ -15,6 +15,17 @@ export async function middleware(req: NextRequest) {
   const { nextUrl } = req
   const pathname = nextUrl.pathname
 
+  // Self-hosted behind a reverse proxy (nginx + our own sidecar): `nextUrl`
+  // reflects the address Next.js itself is bound to (127.0.0.1:<internal
+  // port>), NOT the client-facing Host — it does not read the incoming Host
+  // header. Redirect targets built from `nextUrl` therefore point at
+  // "localhost:<internal port>" instead of the real domain. Build the origin
+  // from the forwarded headers (set by nginx) instead, and use that as the
+  // base for every `new URL(path, ...)` redirect below.
+  const forwardedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? nextUrl.host
+  const forwardedProto = req.headers.get('x-forwarded-proto') ?? nextUrl.protocol.replace(':', '')
+  const origin = `${forwardedProto}://${forwardedHost}`
+
   // Always allow NextAuth API routes
   if (publicApiRoutes.some(r => pathname.startsWith(r))) {
     return NextResponse.next()
@@ -52,7 +63,7 @@ export async function middleware(req: NextRequest) {
 
   // No locale prefix → redirect to default locale version first
   if (!localeMatch) {
-    return NextResponse.redirect(new URL(`/${DEFAULT_LOCALE}${pathname}`, nextUrl))
+    return NextResponse.redirect(new URL(`/${DEFAULT_LOCALE}${pathname}`, origin))
   }
 
   // Admin login — public, but bounce already-authenticated admins straight to the CMS.
@@ -60,7 +71,7 @@ export async function middleware(req: NextRequest) {
   // ends with '/login' and would otherwise be treated as the regular login page.
   if (localePath === '/admin/login') {
     if (isAuthenticated && token?.isAdmin === true) {
-      return NextResponse.redirect(new URL(`/${locale}/admin`, nextUrl))
+      return NextResponse.redirect(new URL(`/${locale}/admin`, origin))
     }
     return NextResponse.next()
   }
@@ -68,10 +79,10 @@ export async function middleware(req: NextRequest) {
   // Admin CMS — requires an authenticated session AND isAdmin === true
   if (localePath === '/admin' || localePath.startsWith('/admin/')) {
     if (!isAuthenticated) {
-      return NextResponse.redirect(new URL(`/${locale}/admin/login`, nextUrl))
+      return NextResponse.redirect(new URL(`/${locale}/admin/login`, origin))
     }
     if (token?.isAdmin !== true) {
-      return NextResponse.redirect(new URL(`/${locale}/admin/login?error=forbidden`, nextUrl))
+      return NextResponse.redirect(new URL(`/${locale}/admin/login?error=forbidden`, origin))
     }
     return NextResponse.next()
   }
@@ -79,14 +90,14 @@ export async function middleware(req: NextRequest) {
   // Auth pages (/login, /register) — redirect to dashboard if already signed in
   if (authRoutes.some(r => localePath.endsWith(r))) {
     if (isAuthenticated) {
-      return NextResponse.redirect(new URL(`/${locale}/dashboard`, nextUrl))
+      return NextResponse.redirect(new URL(`/${locale}/dashboard`, origin))
     }
     return NextResponse.next()
   }
 
   // Protected pages — require session
   if (!isAuthenticated) {
-    return NextResponse.redirect(new URL(`/${locale}/login`, nextUrl))
+    return NextResponse.redirect(new URL(`/${locale}/login`, origin))
   }
 
   return NextResponse.next()
