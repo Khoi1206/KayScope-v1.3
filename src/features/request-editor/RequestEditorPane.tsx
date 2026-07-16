@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { X, Plus, ChevronDown, Search, Inbox, RotateCcw, History } from 'lucide-react'
+import { X, Plus, ChevronDown, Search, Inbox, RotateCcw, History, Rows2, Columns2 } from 'lucide-react'
 import { useRequestStore } from '@/store/request.store'
 import { useEnvironmentStore } from '@/store/environment.store'
 import { useWorkspaceStore, getWorkspaceHeaders } from '@/store/workspace.store'
@@ -94,6 +94,18 @@ export default function RequestEditorPane() {
     return isNaN(saved) ? 0.4 : Math.min(0.85, Math.max(0.15, saved))
   })
   const [isResizingResponse, setIsResizingResponse] = useState(false)
+  const [responsePosition, setResponsePosition] = useState<'bottom' | 'right'>(() => {
+    if (typeof window === 'undefined') return 'bottom'
+    return localStorage.getItem('response-position') === 'right' ? 'right' : 'bottom'
+  })
+
+  function toggleResponsePosition() {
+    setResponsePosition(prev => {
+      const next = prev === 'bottom' ? 'right' : 'bottom'
+      localStorage.setItem('response-position', next)
+      return next
+    })
+  }
 
   // Measure tab bar width → compute how many tabs fit
   useEffect(() => {
@@ -131,22 +143,21 @@ export default function RequestEditorPane() {
 
   useEffect(() => {
     if (!isResizingResponse) return
-    const onMouseMove = (e: MouseEvent) => {
+    function computeRatio(e: MouseEvent) {
       const container = splitContainerRef.current
-      if (!container) return
+      if (!container) return null
       const rect = container.getBoundingClientRect()
-      const newResponseH = rect.bottom - e.clientY
-      const newRatio = Math.min(0.85, Math.max(0.15, newResponseH / rect.height))
-      setResponseRatio(newRatio)
+      const newResponseSize = responsePosition === 'bottom' ? rect.bottom - e.clientY : rect.right - e.clientX
+      const total = responsePosition === 'bottom' ? rect.height : rect.width
+      return Math.min(0.85, Math.max(0.15, newResponseSize / total))
+    }
+    const onMouseMove = (e: MouseEvent) => {
+      const newRatio = computeRatio(e)
+      if (newRatio !== null) setResponseRatio(newRatio)
     }
     const onMouseUp = (e: MouseEvent) => {
-      const container = splitContainerRef.current
-      if (container) {
-        const rect = container.getBoundingClientRect()
-        const newResponseH = rect.bottom - e.clientY
-        const newRatio = Math.min(0.85, Math.max(0.15, newResponseH / rect.height))
-        localStorage.setItem('response-ratio', String(newRatio))
-      }
+      const newRatio = computeRatio(e)
+      if (newRatio !== null) localStorage.setItem('response-ratio', String(newRatio))
       setIsResizingResponse(false)
     }
     window.addEventListener('mousemove', onMouseMove)
@@ -155,7 +166,7 @@ export default function RequestEditorPane() {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [isResizingResponse])
+  }, [isResizingResponse, responsePosition])
 
   const activeEnv = environments.find(e => e.id === activeEnvironmentId)
   const envVars = Object.fromEntries(
@@ -765,10 +776,20 @@ export default function RequestEditorPane() {
             onShowSnippet={() => setShowSnippet(true)}
           />
 
-          {/* Vertical split: request editor top, response bottom */}
-          <div ref={splitContainerRef} className={`flex flex-1 flex-col overflow-hidden${isResizingResponse ? ' select-none' : ''}`}>
-            {/* Request editor (top) */}
-            <div className="flex flex-col overflow-hidden" style={{ flex: `0 0 ${(1 - responseRatio) * 100}%`, minHeight: 100 }}>
+          {/* Split: request editor + response, stacked (bottom) or side-by-side (right) */}
+          <div
+            ref={splitContainerRef}
+            className={cn(
+              'flex flex-1 overflow-hidden',
+              responsePosition === 'bottom' ? 'flex-col' : 'flex-row',
+              isResizingResponse && 'select-none'
+            )}
+          >
+            {/* Request editor */}
+            <div
+              className="flex flex-col overflow-hidden"
+              style={{ flex: `0 0 ${(1 - responseRatio) * 100}%`, minHeight: responsePosition === 'bottom' ? 100 : undefined, minWidth: responsePosition === 'right' ? 200 : undefined }}
+            >
               {/* Editor tab bar */}
               <div className="flex items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
                 {EDITOR_TABS.map(({ key, label }) => (
@@ -788,8 +809,15 @@ export default function RequestEditorPane() {
                     )}
                   </button>
                 ))}
+                <button
+                  onClick={toggleResponsePosition}
+                  title={responsePosition === 'bottom' ? 'Move response panel to the right' : 'Move response panel to the bottom'}
+                  className="ml-auto rounded-lg p-1.5 text-th-fg-muted transition-colors hover:bg-th-surface-hover hover:text-th-fg"
+                >
+                  {responsePosition === 'bottom' ? <Columns2 size={13} /> : <Rows2 size={13} />}
+                </button>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className={editorTab === 'body' ? 'flex flex-1 flex-col overflow-hidden' : 'flex-1 overflow-y-auto'}>
                 {editorTab === 'params' && (
                   <ParamsTab
                     params={snap.params}
@@ -886,18 +914,27 @@ export default function RequestEditorPane() {
               </div>
             </div>
 
-            {/* Horizontal resize handle */}
+            {/* Resize handle */}
             <div
               onMouseDown={e => { e.preventDefault(); setIsResizingResponse(true) }}
-              className="group relative h-1 shrink-0 cursor-row-resize"
+              className={cn(
+                'group relative shrink-0',
+                responsePosition === 'bottom' ? 'h-1 cursor-row-resize' : 'w-1 cursor-col-resize'
+              )}
             >
               <div className={cn(
-                'absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors',
+                'absolute transition-colors',
+                responsePosition === 'bottom'
+                  ? 'inset-x-0 top-1/2 h-px -translate-y-1/2'
+                  : 'inset-y-0 left-1/2 w-px -translate-x-1/2',
                 isResizingResponse ? 'bg-th-accent' : 'bg-th-border group-hover:bg-th-accent'
               )} />
             </div>
-            {/* Response panel (bottom) */}
-            <div className="flex flex-col overflow-hidden" style={{ flex: `0 0 ${responseRatio * 100}%`, minHeight: 100 }}>
+            {/* Response panel */}
+            <div
+              className="flex flex-col overflow-hidden"
+              style={{ flex: `0 0 ${responseRatio * 100}%`, minHeight: responsePosition === 'bottom' ? 100 : undefined, minWidth: responsePosition === 'right' ? 200 : undefined }}
+            >
               {snap.response ? (
                 <ResponsePanel response={snap.response} requestId={activeTab?.requestId} requestName={activeTab?.title} responseKey={responseKey} />
               ) : snap.sending ? (

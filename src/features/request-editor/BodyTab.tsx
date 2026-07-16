@@ -63,9 +63,9 @@ export default function BodyTab({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full flex-col">
       {/* Body type tab strip */}
-      <div className="flex items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
+      <div className="flex shrink-0 items-center gap-0.5 border-b border-th-border bg-th-surface px-2 py-1">
         {BODY_TYPES.map(type => (
           <button
             key={type}
@@ -106,21 +106,23 @@ export default function BodyTab({
       </div>
 
       {/* Body content */}
-      <div className="p-3">
-        {body.type === 'none' && (
-          <p className="text-xs text-th-fg-subtle">{t('noBody')}</p>
-        )}
+      {body.type === 'none' && (
+        <p className="p-3 text-xs text-th-fg-subtle">{t('noBody')}</p>
+      )}
 
-        {(body.type === 'json' || body.type === 'raw') && (
+      {(body.type === 'json' || body.type === 'raw') && (
+        <div className="min-h-0 flex-1 p-3">
           <MonacoEditor
             value={body.content}
             onChange={content => onChange({ ...body, content })}
             language={monoLanguage === 'text' ? 'plaintext' : monoLanguage}
-            height="180px"
+            height="100%"
           />
-        )}
+        </div>
+      )}
 
-        {(body.type === 'form-data' || body.type === 'x-www-form-urlencoded') && (
+      {(body.type === 'form-data' || body.type === 'x-www-form-urlencoded') && (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <KVEditor
             rows={body.formData ?? []}
             onChange={rows => onChange({ ...body, formData: rows })}
@@ -138,39 +140,39 @@ export default function BodyTab({
             onSaveVar={onSaveVar}
             onNavigateToVariables={onNavigateToVariables}
           />
-        )}
+        </div>
+      )}
 
-        {body.type === 'graphql' && (
-          <div className="flex flex-col gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlQuery')}</label>
-              <MonacoEditor
-                value={body.graphqlQuery ?? ''}
-                onChange={graphqlQuery => onChange({ ...body, graphqlQuery })}
-                language="plaintext"
-                height="180px"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlVariables')}</label>
-              <MonacoEditor
-                value={body.graphqlVariables ?? ''}
-                onChange={graphqlVariables => onChange({ ...body, graphqlVariables })}
-                language="json"
-                height="100px"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlOperationName')}</label>
-              <input
-                className="w-full rounded-lg border border-th-border bg-th-input px-2 py-1.5 text-xs text-th-fg focus:outline-none focus:ring-1 focus:ring-th-accent"
-                value={body.graphqlOperationName ?? ''}
-                onChange={e => onChange({ ...body, graphqlOperationName: e.target.value })}
-              />
-            </div>
+      {body.type === 'graphql' && (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+          <div className="flex min-h-[140px] flex-1 flex-col">
+            <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlQuery')}</label>
+            <MonacoEditor
+              value={body.graphqlQuery ?? ''}
+              onChange={graphqlQuery => onChange({ ...body, graphqlQuery })}
+              language="plaintext"
+              height="100%"
+            />
           </div>
-        )}
-      </div>
+          <div className="flex min-h-[100px] flex-col">
+            <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlVariables')}</label>
+            <MonacoEditor
+              value={body.graphqlVariables ?? ''}
+              onChange={graphqlVariables => onChange({ ...body, graphqlVariables })}
+              language="json"
+              height="100px"
+            />
+          </div>
+          <div className="shrink-0">
+            <label className="mb-1 block text-xs font-medium text-th-fg-muted">{t('graphqlOperationName')}</label>
+            <input
+              className="w-full rounded-lg border border-th-border bg-th-input px-2 py-1.5 text-xs text-th-fg focus:outline-none focus:ring-1 focus:ring-th-accent"
+              value={body.graphqlOperationName ?? ''}
+              onChange={e => onChange({ ...body, graphqlOperationName: e.target.value })}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

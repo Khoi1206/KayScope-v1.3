@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { X, Plus, Trash2, Lock, LockOpen, Eye, EyeOff } from 'lucide-react'
 import { useEnvironmentStore, type EnvironmentItem, type EnvironmentVariable } from '@/store/environment.store'
@@ -20,6 +20,7 @@ export default function EnvironmentEditor({ env, onClose }: Props) {
   const [variables, setVariables] = useState<EnvironmentVariable[]>(env?.variables ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const savingRef = useRef(false)
   const [revealed, setRevealed] = useState<Set<number>>(new Set())
 
   function toggleReveal(i: number) {
@@ -45,7 +46,8 @@ export default function EnvironmentEditor({ env, onClose }: Props) {
   }
 
   async function handleSave() {
-    if (!name.trim()) return
+    if (!name.trim() || savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -58,6 +60,7 @@ export default function EnvironmentEditor({ env, onClose }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }

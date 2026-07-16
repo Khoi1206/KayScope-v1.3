@@ -24,6 +24,7 @@ export default function CollectionImportModal({ onClose }: Props) {
   const [parseError, setParseError] = useState<string>('')
   const [importError, setImportError] = useState<string>('')
   const [progress, setProgress] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
   const { fetchCollections } = useCollectionStore()
 
   function detectAndParse(name: string, content: string) {
@@ -47,9 +48,7 @@ export default function CollectionImportModal({ onClose }: Props) {
     return result
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function processFile(file: File) {
     setFileName(file.name)
     setParseError('')
     setImportError('')
@@ -74,6 +73,29 @@ export default function CollectionImportModal({ onClose }: Props) {
       }
     }
     reader.readAsText(file)
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    processFile(file)
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setIsDragOver(false)
   }
 
   async function handleImport() {
@@ -150,14 +172,22 @@ export default function CollectionImportModal({ onClose }: Props) {
             Supported formats: <span className="font-medium text-th-fg">Postman Collection v2.1</span> and <span className="font-medium text-th-fg">OpenAPI 3.x / Swagger 2.0</span> (JSON only)
           </p>
 
-          {/* File picker */}
-          <div>
+          {/* File picker / drop zone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-th-border px-4 py-6 text-sm text-th-fg-muted hover:border-th-accent hover:bg-th-surface hover:text-th-fg"
+              className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-sm transition-colors ${
+                isDragOver
+                  ? 'border-th-accent bg-th-accent/10 text-th-fg'
+                  : 'border-th-border text-th-fg-muted hover:border-th-accent hover:bg-th-surface hover:text-th-fg'
+              }`}
             >
               <Upload size={16} />
-              {fileName ? fileName : 'Click to select a .json file'}
+              {fileName ? fileName : isDragOver ? 'Drop file to import' : 'Click or drag a .json file here'}
             </button>
             <input
               ref={fileInputRef}

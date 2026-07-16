@@ -23,6 +23,8 @@ export default function InputModal({
   onCancel,
 }: Props) {
   const [value, setValue] = useState(initialValue)
+  const [submitted, setSubmitted] = useState(false)
+  const submittedRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   useEscapeKey(onCancel)
 
@@ -32,7 +34,10 @@ export default function InputModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (value.trim()) onConfirm(value.trim())
+    if (submittedRef.current || !value.trim()) return
+    submittedRef.current = true
+    setSubmitted(true)
+    onConfirm(value.trim())
   }
 
   return (
@@ -65,7 +70,7 @@ export default function InputModal({
           </button>
           <button
             type="submit"
-            disabled={!value.trim()}
+            disabled={!value.trim() || submitted}
             className="rounded-md bg-th-accent px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {confirmLabel}
