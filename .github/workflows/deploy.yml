@@ -1,0 +1,21 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Load NVM and run script
+        run: |
+          echo "===== Load NVM ====="
+          export NVM_DIR="/home/nodejs/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          nvm use 22.22.2
+
+          echo "===== Run script ====="
+          cd ~/
+          ./script_kayscope.sh
