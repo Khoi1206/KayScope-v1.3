@@ -42,6 +42,10 @@ export function DELETE(req: NextRequest) {
     if (type === 'collection') {
       const collection = await findCollectionByIdForWorkspaceAny(id, workspace.id)
       if (!collection) throw new NotFoundError('Collection')
+      // findCollectionByIdForWorkspaceAny matches active collections too — without this
+      // check, purging by a stale/active id would permanently delete a live collection
+      // instead of one actually sitting in the trash.
+      if (!collection.deletedAt) throw new ValidationError('Collection is not in trash')
       await purgeCollection(id)
     } else {
       const request = await findDeletedRequestById(id)
