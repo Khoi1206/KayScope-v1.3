@@ -83,8 +83,19 @@ function extractPath(rawUrl: string): string {
   }
 }
 
+/**
+ * The extracted pathname for an OpenAPI path key/param match. The WHATWG URL
+ * parser percent-encodes `{`/`}` (not valid path characters), so a template
+ * like `{{userId}}` comes back as `%7B%7BuserId%7D%7D` — decode that back
+ * before converting Postman-style `{{var}}` to OpenAPI's `{var}`.
+ */
+function toOpenApiPath(rawUrl: string): string {
+  const decoded = extractPath(rawUrl).replace(/%7B/gi, '{').replace(/%7D/gi, '}')
+  return decoded.replace(/\{\{(\w+)\}\}/g, '{$1}') || '/'
+}
+
 function buildOpenApiOperation(r: Request) {
-  const pathParams = Array.from(new Set(Array.from(extractPath(r.url).matchAll(/\{(\w+)\}/g)).map(m => m[1])))
+  const pathParams = Array.from(new Set(Array.from(toOpenApiPath(r.url).matchAll(/\{(\w+)\}/g)).map(m => m[1])))
   const queryParams = (r.params ?? []).filter(p => p.enabled).map(p => ({
     name: p.key, in: 'query', required: false, schema: { type: 'string', example: p.value },
   }))
@@ -115,7 +126,7 @@ function buildOpenApiOperation(r: Request) {
 function buildOpenApiSpec(collectionName: string, description: string, requests: Request[]) {
   const paths: Record<string, Record<string, unknown>> = {}
   for (const r of requests) {
-    const rawPath = extractPath(r.url).replace(/\{\{(\w+)\}\}/g, '{$1}') || '/'
+    const rawPath = toOpenApiPath(r.url)
     const method = r.method.toLowerCase()
     paths[rawPath] ??= {}
     paths[rawPath]![method] = buildOpenApiOperation(r)
