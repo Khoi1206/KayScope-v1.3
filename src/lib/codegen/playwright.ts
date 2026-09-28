@@ -121,8 +121,15 @@ function extractStatusAssertions(script: string): number[] {
 // Returns non-status-check script lines, for emitting as TODO comments
 function getNonStatusAssertionScript(script: string): string {
   if (!script.trim()) return ''
-  const simplified = script.replace(/pm\.response\.to\.have\.status\(\d+\)/g, '').trim()
-  // If the script only had status checks, nothing remains
+  let simplified = script.replace(/pm\.response\.to\.have\.status\(\d+\)\s*;?/g, '').trim()
+  // The common pattern is `pm.test("name", function(){ pm.response.to.have.status(N); })` —
+  // once the status check inside is stripped above, the pm.test(...) wrapper is left
+  // holding an empty body. Strip that shell too, otherwise a fully-handled script still
+  // echoes a `pm.test("name", function(){ ; })` comment that looks like unconverted logic.
+  simplified = simplified
+    .replace(/pm\.test\([^,]*,\s*(?:function\s*\([^)]*\)|\([^)]*\)\s*=>)\s*\{\s*;?\s*\}\s*\)\s*;?/g, '')
+    .trim()
+  // If nothing meaningful remains, there's no leftover logic to surface
   if (!simplified || simplified.replace(/[;{}\n\s]/g, '').length < 10) return ''
   return simplified
 }
