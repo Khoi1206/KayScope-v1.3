@@ -15,7 +15,24 @@
     "invalidCredentials": "Email hoặc mật khẩu không đúng",
     "accountDisabled": "Tài khoản này đã bị khoá. Vui lòng liên hệ quản trị viên.",
     "registrationFailed": "Đăng ký thất bại. Vui lòng thử lại.",
-    "emailTaken": "Tài khoản với email này đã tồn tại"
+    "emailTaken": "Tài khoản với email này đã tồn tại",
+    "forgotPasswordLink": "Quên mật khẩu?",
+    "forgotPassword": {
+      "title": "Đặt lại mật khẩu",
+      "sendCode": "Gửi mã",
+      "sending": "Đang gửi…",
+      "codeSentMessage": "Nếu tồn tại tài khoản với email này, một mã 6 chữ số đã được gửi. Nhập mã đó cùng với mật khẩu mới bên dưới.",
+      "code": "Mã xác nhận",
+      "newPassword": "Mật khẩu mới",
+      "confirmPassword": "Xác nhận mật khẩu",
+      "resetPassword": "Đặt lại mật khẩu",
+      "resettingPassword": "Đang đặt lại…",
+      "successMessage": "Mật khẩu của bạn đã được đặt lại. Bạn có thể đăng nhập bằng mật khẩu mới.",
+      "backToLogin": "Quay lại đăng nhập",
+      "passwordMismatch": "Mật khẩu không khớp",
+      "genericError": "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      "invalidOrExpiredCode": "Mã không hợp lệ hoặc đã hết hạn"
+    }
   },
   "nav": {
     "collections": "Bộ sưu tập",
@@ -571,6 +588,7 @@
       "dashboard": "Bảng điều khiển",
       "users": "Người dùng",
       "logs": "Nhật ký",
+      "settings": "Cấu hình",
       "profile": "Hồ sơ"
     },
     "overview": {
@@ -667,7 +685,31 @@
       "action_deactivate_user": "đã khoá",
       "action_delete_user": "đã xoá",
       "action_create_user": "đã tạo",
-      "action_update_user": "đã cập nhật"
+      "action_update_user": "đã cập nhật",
+      "action_update_email_settings": "đã cập nhật cấu hình email"
+    },
+    "emailSettings": {
+      "title": "Cấu hình Email",
+      "subtitle": "Thông số SMTP dùng để gửi email hệ thống",
+      "host": "Host",
+      "port": "Port",
+      "secure": "Dùng SSL/TLS",
+      "username": "Tên đăng nhập",
+      "password": "Mật khẩu",
+      "passwordKeepPlaceholder": "Để trống nếu không đổi mật khẩu",
+      "fromAddress": "Địa chỉ gửi",
+      "fromName": "Tên người gửi",
+      "save": "Lưu",
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu cấu hình",
+      "failedToLoad": "Không thể tải cấu hình email",
+      "failedToSave": "Không thể lưu cấu hình email",
+      "testEmailTitle": "Gửi email thử nghiệm",
+      "testEmailPlaceholder": "recipient@example.com",
+      "sendTest": "Gửi thử",
+      "sending": "Đang gửi…",
+      "testSuccess": "Đã gửi email thử nghiệm thành công",
+      "testFailed": "Gửi email thử nghiệm thất bại"
     }
   }
 }

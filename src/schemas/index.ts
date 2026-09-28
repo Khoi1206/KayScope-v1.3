@@ -214,6 +214,39 @@ export const adminCreateUserSchema = z.object({
   isActive: z.boolean().optional().default(true),
 })
 
+// ── Admin: email settings ───────────────────────────────────────────────────
+
+export const updateEmailSettingsSchema = z.object({
+  host: z.string().trim().max(255),
+  port: z.number().int().min(1).max(65535),
+  secure: z.boolean(),
+  username: z.string().trim().max(255),
+  // Blank means "keep the current stored password" — see upsertEmailSettings caller.
+  password: z.string().max(500).optional().default(''),
+  fromAddress: z.string().trim().max(255).refine(v => v === '' || z.string().email().safeParse(v).success, {
+    message: 'Invalid email address',
+  }),
+  fromName: z.string().trim().max(255),
+})
+
+export const testEmailSettingsSchema = z.object({
+  to: z.string().trim().email('Invalid email address'),
+})
+
+// ── Auth: forgot password ────────────────────────────────────────────────────
+
+export const forgotPasswordRequestSchema = z.object({
+  email: z.string().trim().email('Invalid email address'),
+  locale: z.enum(['en', 'vi']).optional().default('en'),
+})
+
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().email('Invalid email address'),
+  code: z.string().regex(/^\d{6}$/, 'Invalid code'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  locale: z.enum(['en', 'vi']).optional().default('en'),
+})
+
 // ── Profile ────────────────────────────────────────────────────────────────
 
 export const updateProfileSchema = z

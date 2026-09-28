@@ -93,3 +93,5 @@ export { workspaceMembers, type WorkspaceRole, type WorkspaceMember, type NewWor
 export { examples, type Example, type NewExample } from './examples'
 export { cookies, type Cookie, type NewCookie } from './cookies'
 export { adminAuditLogs, type AdminAuditAction, type AdminAuditLog, type NewAdminAuditLog } from './admin_audit_logs'
+export { emailSettings, type EmailSettings, type NewEmailSettings } from './email_settings'
+export { passwordResetTokens, type PasswordResetToken, type NewPasswordResetToken } from './password_reset_tokens'

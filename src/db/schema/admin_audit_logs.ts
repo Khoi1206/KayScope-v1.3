@@ -9,6 +9,7 @@ export type AdminAuditAction =
   | 'delete_user'
   | 'create_user'
   | 'update_user'
+  | 'update_email_settings'
 
 // System-wide admin CMS audit trail — distinct from the per-workspace `activityLogs`
 // table. No FK constraints: this is an append-only historical record that must

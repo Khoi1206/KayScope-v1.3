@@ -8,7 +8,7 @@ import { getToken } from 'next-auth/jwt'
 const DEFAULT_LOCALE = 'en'
 const LOCALE_PATTERN = /^\/(en|vi)(\/|$)/
 
-const authRoutes = ['/login', '/register']
+const authRoutes = ['/login', '/register', '/forgot-password']
 const publicApiRoutes = ['/api/auth']
 
 export async function middleware(req: NextRequest) {

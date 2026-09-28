@@ -15,7 +15,24 @@
     "invalidCredentials": "Invalid email or password",
     "accountDisabled": "This account has been disabled. Contact an administrator.",
     "registrationFailed": "Registration failed. Please try again.",
-    "emailTaken": "An account with this email already exists"
+    "emailTaken": "An account with this email already exists",
+    "forgotPasswordLink": "Forgot password?",
+    "forgotPassword": {
+      "title": "Reset your password",
+      "sendCode": "Send code",
+      "sending": "Sending…",
+      "codeSentMessage": "If an account exists for that email, a 6-digit code has been sent. Enter it below along with your new password.",
+      "code": "Code",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "resetPassword": "Reset password",
+      "resettingPassword": "Resetting…",
+      "successMessage": "Your password has been reset. You can now sign in with your new password.",
+      "backToLogin": "Back to sign in",
+      "passwordMismatch": "Passwords do not match",
+      "genericError": "Something went wrong. Please try again.",
+      "invalidOrExpiredCode": "Invalid or expired code"
+    }
   },
   "nav": {
     "collections": "Collections",
@@ -571,6 +588,7 @@
       "dashboard": "Dashboard",
       "users": "Users",
       "logs": "Log",
+      "settings": "Settings",
       "profile": "Profile"
     },
     "overview": {
@@ -667,7 +685,31 @@
       "action_deactivate_user": "disabled",
       "action_delete_user": "deleted",
       "action_create_user": "created",
-      "action_update_user": "updated"
+      "action_update_user": "updated",
+      "action_update_email_settings": "updated email settings"
+    },
+    "emailSettings": {
+      "title": "Email Settings",
+      "subtitle": "SMTP configuration used to send system emails",
+      "host": "Host",
+      "port": "Port",
+      "secure": "Use SSL/TLS",
+      "username": "Username",
+      "password": "Password",
+      "passwordKeepPlaceholder": "Leave blank to keep the current password",
+      "fromAddress": "From address",
+      "fromName": "From name",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Settings saved",
+      "failedToLoad": "Failed to load email settings",
+      "failedToSave": "Failed to save email settings",
+      "testEmailTitle": "Send test email",
+      "testEmailPlaceholder": "recipient@example.com",
+      "sendTest": "Send test",
+      "sending": "Sending…",
+      "testSuccess": "Test email sent successfully",
+      "testFailed": "Failed to send test email"
     }
   }
 }

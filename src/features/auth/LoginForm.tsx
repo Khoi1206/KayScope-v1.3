@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
-import { useRouter } from '@/i18n/routing'
+import { Link, useRouter } from '@/i18n/routing'
 
 export default function LoginForm() {
   const t = useTranslations('auth')
@@ -74,6 +74,11 @@ export default function LoginForm() {
             onChange={handleChange}
             className="w-full rounded-md border border-th-border bg-th-input px-3 py-2 text-sm text-th-fg placeholder:text-th-fg-subtle focus:outline-none focus:ring-2 focus:ring-th-accent"
           />
+          <p className="mt-1 text-right">
+            <Link href="/forgot-password" className="text-xs text-th-accent hover:underline">
+              {t('forgotPasswordLink')}
+            </Link>
+          </p>
         </div>
 
         {error && (

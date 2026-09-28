@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import logger from '@/lib/logger'
 
 const ALGO = 'aes-256-gcm' as const
@@ -60,4 +60,9 @@ export function decryptValue(stored: string): string {
 /** Return a masked display value for a secret (never returns plaintext). */
 export function maskValue(): string {
   return '••••••••'
+}
+
+/** One-way SHA-256 hex digest — used for short-lived verification codes (password reset, etc). */
+export function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
 }

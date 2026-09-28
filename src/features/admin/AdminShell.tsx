@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
-import { LayoutDashboard, Users, ScrollText, LogOut, UserCircle } from 'lucide-react'
+import { LayoutDashboard, Users, ScrollText, Settings, LogOut, UserCircle } from 'lucide-react'
 import ThemeSwitcher from '@/components/ThemeSwitcher'
 import LocaleSwitcher from '@/components/LocaleSwitcher'
 import ProfileModal from '@/components/ProfileModal'
@@ -28,6 +28,7 @@ export default function AdminShell({ currentUserName, children }: Props) {
     { href: base, label: t('nav.dashboard'), icon: LayoutDashboard },
     { href: `${base}/users`, label: t('nav.users'), icon: Users },
     { href: `${base}/logs`, label: t('nav.logs'), icon: ScrollText },
+    { href: `${base}/settings`, label: t('nav.settings'), icon: Settings },
   ]
 
   return (
