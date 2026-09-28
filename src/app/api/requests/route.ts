@@ -15,7 +15,7 @@ export function GET(req: NextRequest) {
     const collectionId = req.nextUrl.searchParams.get('collectionId')
     if (!collectionId) throw new ValidationError('collectionId query param required')
     const col = await findCollectionByIdForWorkspace(collectionId, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     const items = await findRequestsByCollection(collectionId)
     return NextResponse.json(items)
   })
@@ -28,7 +28,7 @@ export function PATCH(req: NextRequest) {
     const body = await req.json() as { collectionId: string; items: { id: string; sortOrder: number }[] }
     if (!body?.collectionId || !Array.isArray(body?.items)) throw new ValidationError('collectionId and items required')
     const col = await findCollectionByIdForWorkspace(body.collectionId, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     const existing = await findRequestsByCollection(body.collectionId)
     const ownedIds = new Set(existing.map(r => r.id))
     const safe = body.items.filter(i => ownedIds.has(i.id))
@@ -45,7 +45,7 @@ export function POST(req: NextRequest) {
     const parsed = createRequestSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
     const col = await findCollectionByIdForWorkspace(parsed.data.collectionId, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     const request = await createRequest({ ...parsed.data, createdBy: session.user.id })
     await logActivity({
       workspaceId: workspace.id,

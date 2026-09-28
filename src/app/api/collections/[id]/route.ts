@@ -15,7 +15,7 @@ export function GET(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireActiveWorkspace(req, session.user.id)
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     return NextResponse.json({ ...col, variables: maskVariables(col.variables) })
   })
 }
@@ -25,7 +25,7 @@ export function PUT(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     const body = await req.json()
     const parsed = updateCollectionSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
@@ -40,7 +40,7 @@ export function PUT(req: NextRequest, { params }: Params) {
     if (parsed.data.postRequestScript !== undefined) updateData.postRequestScript = parsed.data.postRequestScript
 
     const updated = await updateCollection(params.id, updateData)
-    if (!updated) throw new NotFoundError('Collection not found')
+    if (!updated) throw new NotFoundError('Collection')
     if (parsed.data.name !== undefined && parsed.data.name !== col.name) {
       await logActivity({
         workspaceId: workspace.id,
@@ -61,7 +61,7 @@ export function DELETE(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const col = await findCollectionByIdForWorkspace(params.id, workspace.id)
-    if (!col) throw new NotFoundError('Collection not found')
+    if (!col) throw new NotFoundError('Collection')
     await deleteCollection(params.id)
     await logActivity({
       workspaceId: workspace.id,

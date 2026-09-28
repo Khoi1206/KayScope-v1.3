@@ -18,7 +18,7 @@ export function PATCH(req: NextRequest, { params }: Params) {
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
 
     const target = await findUserById(params.id)
-    if (!target) throw new NotFoundError('User not found')
+    if (!target) throw new NotFoundError('User')
 
     if (params.id === session.user.id) {
       if (parsed.data.isAdmin === false) {
@@ -79,7 +79,7 @@ export function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     const target = await findUserById(params.id)
-    if (!target) throw new NotFoundError('User not found')
+    if (!target) throw new NotFoundError('User')
 
     await logAdminAction({
       actorId: session.user.id,

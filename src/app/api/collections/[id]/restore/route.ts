@@ -12,7 +12,7 @@ export function POST(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const collection = await findCollectionByIdForWorkspaceAny(params.id, workspace.id)
-    if (!collection) throw new NotFoundError('Collection not found')
+    if (!collection) throw new NotFoundError('Collection')
     await restoreCollection(params.id)
     return NextResponse.json({ success: true })
   })

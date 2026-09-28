@@ -15,7 +15,7 @@ export function GET(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireActiveWorkspace(req, session.user.id)
     const env = await findEnvironmentByIdForWorkspace(params.id, workspace.id)
-    if (!env) throw new NotFoundError('Environment not found')
+    if (!env) throw new NotFoundError('Environment')
     return NextResponse.json({ ...env, variables: maskVariables(env.variables) })
   })
 }
@@ -25,7 +25,7 @@ export function PUT(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const env = await findEnvironmentByIdForWorkspace(params.id, workspace.id)
-    if (!env) throw new NotFoundError('Environment not found')
+    if (!env) throw new NotFoundError('Environment')
     const body = await req.json()
     const parsed = updateEnvironmentSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
@@ -37,7 +37,7 @@ export function PUT(req: NextRequest, { params }: Params) {
     }
 
     const updated = await updateEnvironment(params.id, updateData)
-    if (!updated) throw new NotFoundError('Environment not found')
+    if (!updated) throw new NotFoundError('Environment')
     if (parsed.data.name && parsed.data.name !== env.name) {
       await logActivity({
         workspaceId: workspace.id,
@@ -58,7 +58,7 @@ export function DELETE(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const env = await findEnvironmentByIdForWorkspace(params.id, workspace.id)
-    if (!env) throw new NotFoundError('Environment not found')
+    if (!env) throw new NotFoundError('Environment')
     await deleteEnvironment(params.id)
     await logActivity({
       workspaceId: workspace.id,

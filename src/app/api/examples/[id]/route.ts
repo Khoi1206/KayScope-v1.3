@@ -16,7 +16,7 @@ export function PATCH(req: NextRequest, { params }: Params) {
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
 
     const updated = await updateExample(params.id, session.user.id, { name: parsed.data.name })
-    if (!updated) throw new NotFoundError('Example not found')
+    if (!updated) throw new NotFoundError('Example')
 
     return NextResponse.json(updated)
   })
@@ -27,7 +27,7 @@ export function DELETE(_req: NextRequest, { params }: Params) {
     const session = await requireSession()
 
     const deleted = await deleteExample(params.id, session.user.id)
-    if (!deleted) throw new NotFoundError('Example not found')
+    if (!deleted) throw new NotFoundError('Example')
 
     return NextResponse.json({ success: true })
   })

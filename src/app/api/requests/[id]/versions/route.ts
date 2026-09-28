@@ -16,7 +16,7 @@ export function GET(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireActiveWorkspace(req, session.user.id)
     const request = await findRequestById(id)
-    if (!request) throw new NotFoundError('Request not found')
+    if (!request) throw new NotFoundError('Request')
     const col = await findCollectionByIdForWorkspace(request.collectionId, workspace.id)
     if (!col) throw new ForbiddenError('Access denied')
 
@@ -34,7 +34,7 @@ export function POST(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const request = await findRequestById(id)
-    if (!request) throw new NotFoundError('Request not found')
+    if (!request) throw new NotFoundError('Request')
     const col = await findCollectionByIdForWorkspace(request.collectionId, workspace.id)
     if (!col) throw new ForbiddenError('Access denied')
 

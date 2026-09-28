@@ -41,11 +41,11 @@ export function DELETE(req: NextRequest) {
 
     if (type === 'collection') {
       const collection = await findCollectionByIdForWorkspaceAny(id, workspace.id)
-      if (!collection) throw new NotFoundError('Collection not found')
+      if (!collection) throw new NotFoundError('Collection')
       await purgeCollection(id)
     } else {
       const request = await findDeletedRequestById(id)
-      if (!request) throw new NotFoundError('Request not found')
+      if (!request) throw new NotFoundError('Request')
       const col = await findCollectionByIdForWorkspaceAny(request.collectionId, workspace.id)
       if (!col) throw new ForbiddenError('Access denied')
       await purgeRequest(id)

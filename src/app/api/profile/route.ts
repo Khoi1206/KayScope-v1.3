@@ -11,7 +11,7 @@ export function GET() {
   return withErrorHandler(async () => {
     const session = await requireSession()
     const user = await findUserById(session.user.id)
-    if (!user) throw new NotFoundError('User not found')
+    if (!user) throw new NotFoundError('User')
     return NextResponse.json({ id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin })
   })
 }
@@ -25,7 +25,7 @@ export function PATCH(req: NextRequest) {
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')
 
     const user = await findUserById(session.user.id)
-    if (!user) throw new NotFoundError('User not found')
+    if (!user) throw new NotFoundError('User')
 
     const update: Partial<{ name: string; passwordHash: string }> = {}
     if (parsed.data.name !== undefined) update.name = parsed.data.name

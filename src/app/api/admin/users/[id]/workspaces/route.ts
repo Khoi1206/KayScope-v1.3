@@ -13,7 +13,7 @@ export function GET(_req: NextRequest, { params }: Params) {
     await requireAdmin()
 
     const target = await findUserById(params.id)
-    if (!target) throw new NotFoundError('User not found')
+    if (!target) throw new NotFoundError('User')
 
     const [owned, member] = await Promise.all([
       findAllWorkspacesByOwner(params.id),

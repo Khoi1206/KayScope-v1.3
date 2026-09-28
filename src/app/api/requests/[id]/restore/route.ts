@@ -13,7 +13,7 @@ export function POST(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const request = await findDeletedRequestById(params.id)
-    if (!request) throw new NotFoundError('Request not found')
+    if (!request) throw new NotFoundError('Request')
     const col = await findCollectionByIdForWorkspaceAny(request.collectionId, workspace.id)
     if (!col) throw new ForbiddenError('Access denied')
     const restored = await restoreRequest(params.id)

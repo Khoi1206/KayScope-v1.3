@@ -13,7 +13,7 @@ export function POST(req: NextRequest, { params }: Params) {
     const session = await requireSession()
     const workspace = await requireWorkspaceRole(req, session.user.id, 'editor')
     const source = await findEnvironmentByIdForWorkspace(params.id, workspace.id)
-    if (!source) throw new NotFoundError('Environment not found')
+    if (!source) throw new NotFoundError('Environment')
 
     // Variable values are already AES-256-GCM encrypted strings — copy verbatim, no re-encryption needed.
     const copy = await createEnvironment(workspace.id, {

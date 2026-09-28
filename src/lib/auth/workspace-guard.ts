@@ -35,14 +35,14 @@ export async function requireActiveWorkspace(req: NextRequest, userId: string) {
   const id = req.headers.get('X-Workspace-Id')
   if (id) {
     const ws = await findWorkspaceById(id)
-    if (!ws) throw new NotFoundError('Workspace not found')
+    if (!ws) throw new NotFoundError('Workspace')
     const role = await getEffectiveRole(id, userId)
     if (!role) throw new ForbiddenError('Workspace not found or access denied')
     return ws
   }
   // No header — fall back to the first workspace (handles legacy / unauthenticated callers)
   const ws = await findWorkspaceByOwner(userId)
-  if (!ws) throw new NotFoundError('Workspace not found')
+  if (!ws) throw new NotFoundError('Workspace')
   return ws
 }
 
