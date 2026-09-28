@@ -4,9 +4,9 @@ import { upsertPersonalWorkspace } from '@/db/queries/workspaces'
 import logger from '@/lib/logger'
 
 export async function seedAdminUser() {
-  const email = "admin@example.com"
-  const password = "12345678"
-  const name = "Administrator"
+  const email = process.env.ADMIN_EMAIL
+  const password = process.env.ADMIN_PASSWORD
+  const name = process.env.ADMIN_NAME || 'Administrator'
 
   if (!email || !password) {
     logger.warn('[seed-admin] ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping bootstrap admin')
