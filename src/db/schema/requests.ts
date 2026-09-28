@@ -18,7 +18,7 @@ export const requests = pgTable('requests', {
   preRequestScript: text('pre_request_script').notNull().default(''),
   postRequestScript: text('post_request_script').notNull().default(''),
   sortOrder: integer('sort_order').notNull().default(0),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),

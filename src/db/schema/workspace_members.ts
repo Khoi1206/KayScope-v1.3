@@ -13,7 +13,7 @@ export const workspaceMembers = pgTable('workspace_members', {
   workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').$type<WorkspaceRole>().notNull(),
-  invitedBy: text('invited_by').notNull().references(() => users.id),
+  invitedBy: text('invited_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqueMember: unique().on(t.workspaceId, t.userId),

@@ -7,7 +7,7 @@ export const history = pgTable('history', {
   id: text('id').primaryKey().$defaultFn(createId),
   workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   requestId: text('request_id'), // nullable — ad-hoc requests have no saved requestId
-  userId: text('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   method: text('method').notNull(),
   url: text('url').notNull(),
   requestHeaders: jsonb('request_headers').$type<Record<string, string>>().notNull().default({}),

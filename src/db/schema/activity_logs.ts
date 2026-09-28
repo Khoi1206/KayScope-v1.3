@@ -14,7 +14,7 @@ export type ActivityEntityType = 'collection' | 'folder' | 'request' | 'environm
 export const activityLogs = pgTable('activity_logs', {
   id: text('id').primaryKey().$defaultFn(createId),
   workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  actorId: text('actor_id').notNull().references(() => users.id),
+  actorId: text('actor_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   action: text('action').$type<ActivityAction>().notNull(),
   entityType: text('entity_type').$type<ActivityEntityType>().notNull(),
   entityId: text('entity_id').notNull(),

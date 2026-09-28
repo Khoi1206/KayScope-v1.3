@@ -1,6 +1,7 @@
 import { eq, ne, and, or, ilike, gte, desc, count } from 'drizzle-orm'
 import { db, users } from '../index'
 import type { NewUser } from '../schema/users'
+import { ConflictError } from '@/lib/errors'
 
 export async function findUserByEmail(email: string) {
   const rows = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1)
@@ -98,7 +99,17 @@ export async function updateUserFlags(
   return rows[0] ?? null
 }
 
-/** Hard-delete a user — cascades to owned workspaces via FK. Caller must guard against self-delete. */
+/** Hard-delete a user — cascades to owned workspaces and everything they authored, via FK. Caller must guard against self-delete. */
 export async function deleteUser(id: string) {
-  await db.delete(users).where(eq(users.id, id))
+  try {
+    await db.delete(users).where(eq(users.id, id))
+  } catch (err) {
+    // Every FK to users.id cascades today; a 23503 here means a newly added
+    // reference was created without onDelete: 'cascade'. Surface that as a clean
+    // 409 instead of an unhandled 500.
+    if ((err as { code?: string } | null)?.code === '23503') {
+      throw new ConflictError('Cannot delete this user — other records still reference them.')
+    }
+    throw err
+  }
 }

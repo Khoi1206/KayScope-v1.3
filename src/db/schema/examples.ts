@@ -24,7 +24,7 @@ export const examples = pgTable('examples', {
   requestHeaders: jsonb('request_headers').$type<KeyValuePair[]>(),
   requestBody: jsonb('request_body').$type<RequestBody>(),
   requestAuth: jsonb('request_auth').$type<RequestAuth>(),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

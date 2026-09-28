@@ -12,7 +12,7 @@ export const collections = pgTable('collections', {
   variables: jsonb('variables').$type<Variable[]>().notNull().default([]),
   preRequestScript: text('pre_request_script').notNull().default(''),
   postRequestScript: text('post_request_script').notNull().default(''),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

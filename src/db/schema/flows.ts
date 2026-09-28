@@ -90,7 +90,7 @@ export const flows = pgTable('flows', {
   // Run timeout in milliseconds — how long `POST /api/flows/[id]/run` waits for
   // the Playwright CLI before killing it. Defaults to 120s when unset.
   timeoutMs: integer('timeout_ms').notNull().default(120_000),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

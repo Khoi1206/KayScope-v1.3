@@ -17,7 +17,7 @@ export const flowVersions = pgTable('flow_versions', {
   label: text('label'),
   nodes: jsonb('nodes').$type<FlowNode[]>().notNull(),
   edges: jsonb('edges').$type<FlowEdge[]>().notNull(),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

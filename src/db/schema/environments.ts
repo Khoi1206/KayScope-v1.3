@@ -10,7 +10,7 @@ export const environments = pgTable('environments', {
   name: text('name').notNull(),
   // Secret variable values are stored AES-256-GCM encrypted with the 'enc:' prefix
   variables: jsonb('variables').$type<Variable[]>().notNull().default([]),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

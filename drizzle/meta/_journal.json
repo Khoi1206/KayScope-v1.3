@@ -22,6 +22,13 @@
       "when": 1785305131152,
       "tag": "0002_nervous_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790564710753,
+      "tag": "0003_fix_user_fk_cascades",
+      "breakpoints": true
     }
   ]
 }

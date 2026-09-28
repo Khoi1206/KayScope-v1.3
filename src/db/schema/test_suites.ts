@@ -15,7 +15,7 @@ export const testSuites = pgTable('test_suites', {
   // Saved data rows for iteration; same shape as DataRow[] from lib/data-parser
   dataRows: jsonb('data_rows').$type<Record<string, string>[]>().notNull().default([]),
   sortOrder: integer('sort_order').notNull().default(0),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

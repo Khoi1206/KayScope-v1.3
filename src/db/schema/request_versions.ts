@@ -22,7 +22,7 @@ export const requestVersions = pgTable('request_versions', {
   auth: jsonb('auth').$type<RequestAuth>().notNull(),
   preRequestScript: text('pre_request_script').notNull().default(''),
   postRequestScript: text('post_request_script').notNull().default(''),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
