@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
+import { loadEnvConfig } from '@next/env'
+
+// Same .env the app reads — the e2e auth helper needs ADMIN_EMAIL / ADMIN_PASSWORD.
+loadEnvConfig(process.cwd())
 
 export default defineConfig({
   testDir: 'tests/e2e/ui',
@@ -12,7 +16,7 @@ export default defineConfig({
   // Sequential — tests share a live dev server and database
   workers: 1,
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3008',
     headless: true,
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -20,7 +24,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: 'http://localhost:3008',
     // Reuse a server that's already running (typical during local dev)
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

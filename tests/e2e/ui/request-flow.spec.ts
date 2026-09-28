@@ -1,17 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
+import { loginAsNewUser as registerAndLogin } from './helpers/auth'
 
-const PASSWORD = 'E2eTest!2025'
+// Self-registration is disabled (Admin CMS) — each test creates a fresh user
+// via the admin API and logs in as them. See ./helpers/auth.ts.
 
-/** Register a new user and land on the dashboard. Uses stable element IDs. */
-async function registerAndLogin(page: Page): Promise<string> {
-  const email = `e2e-req-${Date.now()}@example.com`
-  await page.goto('/en/register')
-  await page.locator('#name').fill('E2E Test User')
-  await page.locator('#email').fill(email)
-  await page.locator('#password').fill(PASSWORD)
-  await page.getByRole('button', { name: /create account|tạo tài khoản/i }).click()
-  await page.waitForURL(/dashboard/, { timeout: 15_000 })
-  return email
+/** A brand-new user's dashboard has no tabs open — click "New tab" to reach the empty request editor. */
+async function openNewTab(page: Page): Promise<void> {
+  await page.locator('button[title="New tab"]').first().click()
 }
 
 test.describe('Request editor flow', () => {
@@ -24,13 +19,15 @@ test.describe('Request editor flow', () => {
 
   test('can open a new request tab', async ({ page }) => {
     await registerAndLogin(page)
+    await openNewTab(page)
 
-    // URL bar input should be visible (a default tab is opened)
+    // URL bar input should be visible once a tab is open
     await expect(page.locator('input[placeholder*="https"]')).toBeVisible({ timeout: 8_000 })
   })
 
   test('can type a URL and see Send button', async ({ page }) => {
     await registerAndLogin(page)
+    await openNewTab(page)
 
     const urlInput = page.locator('input[placeholder*="https"]')
     await urlInput.waitFor({ state: 'visible', timeout: 10_000 })
@@ -43,6 +40,7 @@ test.describe('Request editor flow', () => {
 
   test('Code snippet button opens snippet modal', async ({ page }) => {
     await registerAndLogin(page)
+    await openNewTab(page)
     const urlInput = page.locator('input[placeholder*="https"]')
     await urlInput.waitFor({ state: 'visible', timeout: 10_000 })
     await urlInput.fill('https://api.example.com/test')
@@ -52,7 +50,7 @@ test.describe('Request editor flow', () => {
     await codeBtn.click()
 
     // Modal should appear with language tabs
-    await expect(page.getByText('cURL')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('button', { name: 'cURL' })).toBeVisible({ timeout: 5_000 })
     await expect(page.getByText('JS Fetch')).toBeVisible()
     await expect(page.locator('pre')).toBeVisible()
 
@@ -92,7 +90,7 @@ test.describe('Request editor flow', () => {
   test('search input filters collections', async ({ page }) => {
     await registerAndLogin(page)
 
-    const searchInput = page.locator('aside input[type="text"]').first()
+    const searchInput = page.locator('aside input[placeholder*="Search"]').first()
     await searchInput.waitFor({ state: 'visible', timeout: 8_000 })
     await searchInput.fill('nonexistent-search-xyz')
 
@@ -108,6 +106,7 @@ test.describe('Request editor flow', () => {
 test.describe('Response panel', () => {
   test('empty state shown before sending', async ({ page }) => {
     await registerAndLogin(page)
+    await openNewTab(page)
     // Before sending, should show empty state message
     const emptyState = page.getByText(/click send|send to get|no response/i)
     await expect(emptyState).toBeVisible({ timeout: 8_000 })
@@ -116,6 +115,7 @@ test.describe('Response panel', () => {
   test('response tabs are visible after send (requires network)', async ({ page }) => {
     test.slow() // network request may take time
     await registerAndLogin(page)
+    await openNewTab(page)
 
     const urlInput = page.locator('input[placeholder*="https"]')
     await urlInput.waitFor({ state: 'visible', timeout: 10_000 })
@@ -123,12 +123,13 @@ test.describe('Response panel', () => {
 
     await page.getByRole('button', { name: /^send$/i }).click()
 
-    // Wait for response (status badge should appear)
-    await expect(page.locator('text=200').first()).toBeVisible({ timeout: 30_000 })
+    // Wait for response (status badge should appear) — external network call, be generous
+    await expect(page.locator('text=200').first()).toBeVisible({ timeout: 45_000 })
 
-    // Response tabs should be visible
+    // Response tabs should be visible ("Headers" also exists as a request-editor
+    // tab, so the response panel's copy — rendered after it in the DOM — is `.last()`)
     await expect(page.getByRole('button', { name: /pretty/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /raw/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /headers/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /headers/i }).last()).toBeVisible()
   })
 })
