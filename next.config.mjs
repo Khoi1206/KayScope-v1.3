@@ -23,7 +23,14 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ]
 
+// KayScope Desktop spike (see ../KayScope-desktop v1.3/CLAUDE.md §5.3):
+// a second, static-export build target used only to produce the bundle the
+// Electron shell loads from disk. The normal web deployment (`pnpm build`)
+// is completely unaffected — this only activates when explicitly requested.
+const isElectronBuild = process.env.NEXT_PUBLIC_BUILD_TARGET === 'electron'
+
 const nextConfig = {
+  ...(isElectronBuild ? { output: 'export', distDir: 'out-electron' } : {}),
   experimental: {
     serverComponentsExternalPackages: ['piscina', 'ioredis'],
     instrumentationHook: true, // src/instrumentation.ts — seeds bootstrap admin on startup

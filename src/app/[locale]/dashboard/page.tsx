@@ -1,10 +1,25 @@
-import { redirect } from 'next/navigation'
-import { requireSession } from '@/lib/auth/session'
+'use client'
+
+import { useEffect, useState } from 'react'
+import AuthGuard from '@/components/AuthGuard'
 import WorkspaceShell from './WorkspaceShell'
 
-export default async function DashboardPage({ params }: { params: { locale: string } }) {
-  const session = await requireSession().catch(() => null)
-  if (!session) redirect(`/${params.locale}/login`)
+export default function DashboardPage({ params }: { params: { locale: string } }) {
+  const { locale } = params
+  const [session, setSession] = useState<{ id: string; name: string | null } | null>(null)
 
-  return <WorkspaceShell userId={session.user.id} userName={session.user.name} />
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then(res => res.json())
+      .then((s: { user?: { id: string; name?: string | null } } | null) => {
+        if (s?.user) setSession({ id: s.user.id, name: s.user.name ?? null })
+      })
+      .catch(() => {})
+  }, [])
+
+  return (
+    <AuthGuard locale={locale} mode="require-auth">
+      {session && <WorkspaceShell userId={session.id} userName={session.name} />}
+    </AuthGuard>
+  )
 }

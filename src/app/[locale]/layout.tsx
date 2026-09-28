@@ -16,6 +16,12 @@ interface LocaleLayoutProps {
   params: { locale: string }
 }
 
+// Required for `output: 'export'` (KayScope Desktop's static build) to know
+// which locale segments to pre-render — harmless no-op for the normal SSR build.
+export function generateStaticParams() {
+  return routing.locales.map(locale => ({ locale }))
+}
+
 export default async function LocaleLayout({ children, params }: LocaleLayoutProps) {
   const { locale } = params
 

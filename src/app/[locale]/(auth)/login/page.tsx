@@ -1,14 +1,16 @@
-import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth/auth'
+'use client'
+
+import AuthGuard from '@/components/AuthGuard'
 import LoginForm from '@/features/auth/LoginForm'
 
-export default async function LoginPage({ params }: { params: { locale: string } }) {
-  const session = await auth()
-  if (session) redirect(`/${params.locale}/dashboard`)
+export default function LoginPage({ params }: { params: { locale: string } }) {
+  const { locale } = params
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-th-bg px-4">
-      <LoginForm />
-    </div>
+    <AuthGuard locale={locale} mode="redirect-if-auth">
+      <div className="flex min-h-screen items-center justify-center bg-th-bg px-4">
+        <LoginForm />
+      </div>
+    </AuthGuard>
   )
 }
