@@ -124,7 +124,11 @@ function buildPmApi(ctx, tests, logs) {
     },
   } : null
 
-  let _nextRequest = null
+  // undefined = pm.setNextRequest() never called (continue to the next request in
+  // order); null = explicitly called with null (stop the runner). These must stay
+  // distinguishable — collapsing both to null made every request with a
+  // post-script halt the collection runner after just one request.
+  let _nextRequest
 
   const pmApi = {
     variables: makeVarScope(ctx.local, mutations.local, allScopes),
